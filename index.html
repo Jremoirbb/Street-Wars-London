@@ -1176,7 +1176,7 @@ function StreetWarsLondon() {
                 )}
                 {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>You have: <span style={{ color: T.text }}>{maxSell}</span></div>}
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                  <input style={inputSt} type="number" min="1" max={maxQty} placeholder="Quantity..." value={qtyInput}
+                  <input style={inputSt} type="number" inputMode="numeric" autoComplete="off" data-lpignore="true" min="1" max={maxQty} placeholder="Quantity..." value={qtyInput}
                     onChange={(e) => setQtyInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && amt > 0) { isBuy ? doBuy(q.itemIdx, amt) : doSell(q.itemIdx, amt); setQtyInput(""); } }} autoFocus />
                   <button style={{ ...btnStyle(false), padding: "6px 10px", fontSize: 11, whiteSpace: "nowrap" }}
@@ -1229,7 +1229,7 @@ function StreetWarsLondon() {
 
               {/* INPUT + MAX + ACTION */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                <input style={inputSt} type="number" placeholder="Amount..." value={gs.finAmt}
+                <input style={inputSt} type="number" inputMode="numeric" autoComplete="off" data-lpignore="true" placeholder="Amount..." value={gs.finAmt}
                   onChange={(e) => setGs((p) => ({ ...p, finAmt: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter") return;
@@ -1438,9 +1438,31 @@ function StreetWarsLondon() {
         </Overlay>
       )}
 
-      <div style={{ maxWidth: 768, width: "100%", margin: "auto", padding: isMobile ? "0 4px" : 0, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, overflowX: "hidden" }}>
+      <div style={{ maxWidth: 768, width: "100%", margin: "auto", padding: isMobile ? "0 4px" : 0, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* STATS PANEL — sticky on mobile, pulled out of flex row */}
+        {isMobile && (
+          <div style={{ ...panelStyle, padding: "10px 16px", position: "sticky", top: 0, zIndex: 100 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day: {gs.day}/{MAX_DAYS}</span>
+              <div style={{ fontFamily: font, fontSize: 12, display: "flex", gap: 12 }}>
+                <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+                <span style={{ color: T.textDim }}>Bank: <span style={{ color: T.blue }}>£{gs.bank.toLocaleString()}</span></span>
+                <span style={{ color: T.textDim }}>Debt: <span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></span>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {gs.shiftyUses > 0 && gs.shiftyCooldown <= 0 && <span style={{ fontSize: 14 }}>🐷</span>}
+                {gs.shiftyUses > 0 && gs.shiftyCooldown > 0 && <span style={{ fontSize: 14, opacity: 0.4 }}>🐷</span>}
+                {gs.jamalActive && <span style={{ fontSize: 14 }}>💪</span>}
+                <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs((p) => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
-          <div style={{ ...panelStyle, width: isMobile ? "auto" : 220, padding: "12px 16px", ...(isMobile ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
+          {/* STATS PANEL — desktop only (in flex row) */}
+          {!isMobile && (
+          <div style={{ ...panelStyle, width: 220, padding: "12px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day: {gs.day}/{MAX_DAYS}</span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1456,6 +1478,7 @@ function StreetWarsLondon() {
               <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span style={{ color: T.textDim }}>Debt:</span><span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></div>
             </div>
           </div>
+          )}
           <div style={{ ...panelStyle, flex: 1, padding: "12px 16px" }}>
             <div style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{BOROUGHS[gs.borough].locations[gs.location]}</div>
             <div style={{ fontSize: 12, color: T.textDim, marginBottom: 10 }}>{BOROUGHS[gs.borough].name}</div>
