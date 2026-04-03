@@ -9,7 +9,7 @@
   <title>Street Wars London</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #root { height: 100%; background: #2d2d2d; max-width: 100vw; overflow-x: hidden; }
+    html, body, #root { height: 100%; background: #2d2d2d; max-width: 100vw; overflow-x: clip; }
     body { -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
   </style>
 </head>
@@ -1148,7 +1148,7 @@ function StreetWarsLondon() {
   const eventBorder = gs.eventType === "good" ? "1px solid rgba(139,171,30,0.3)" : gs.eventType === "bad" ? "1px solid rgba(221,68,68,0.3)" : `1px solid ${T.border}`;
 
   return (
-    <div onClick={() => { if (gs.milestoneToast) setGs((p) => ({ ...p, milestoneToast: null })); }} style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "12px 4px 8px" : "32px 8px 16px", maxWidth: "100vw", overflowX: "hidden" }}>
+    <div onClick={() => { if (gs.milestoneToast) setGs((p) => ({ ...p, milestoneToast: null })); }} style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "12px 4px 8px" : "32px 8px 16px" }}>
       <EventPopup />
       {gs.qtyPopup && (() => {
         const q = gs.qtyPopup; const item = ITEMS[q.itemIdx]; const isBuy = q.type === "buy";
@@ -1176,7 +1176,7 @@ function StreetWarsLondon() {
                 )}
                 {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>You have: <span style={{ color: T.text }}>{maxSell}</span></div>}
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                  <input style={inputSt} type="number" inputMode="numeric" autoComplete="off" data-lpignore="true" min="1" max={maxQty} placeholder="Quantity..." value={qtyInput}
+                  <input style={inputSt} type="number" inputMode="numeric" autoComplete="one-time-code" data-lpignore="true" min="1" max={maxQty} placeholder="Quantity..." value={qtyInput}
                     onChange={(e) => setQtyInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && amt > 0) { isBuy ? doBuy(q.itemIdx, amt) : doSell(q.itemIdx, amt); setQtyInput(""); } }} autoFocus />
                   <button style={{ ...btnStyle(false), padding: "6px 10px", fontSize: 11, whiteSpace: "nowrap" }}
@@ -1229,7 +1229,7 @@ function StreetWarsLondon() {
 
               {/* INPUT + MAX + ACTION */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                <input style={inputSt} type="number" inputMode="numeric" autoComplete="off" data-lpignore="true" placeholder="Amount..." value={gs.finAmt}
+                <input style={inputSt} type="number" inputMode="numeric" autoComplete="one-time-code" data-lpignore="true" placeholder="Amount..." value={gs.finAmt}
                   onChange={(e) => setGs((p) => ({ ...p, finAmt: e.target.value }))}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter") return;
