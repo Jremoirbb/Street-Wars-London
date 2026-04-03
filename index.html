@@ -1440,7 +1440,7 @@ function StreetWarsLondon() {
 
       <div style={{ maxWidth: 768, width: "100%", margin: "auto", padding: isMobile ? "0 4px" : 0, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, overflowX: "hidden" }}>
         <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
-          <div style={{ ...panelStyle, width: isMobile ? "auto" : 220, padding: "12px 16px" }}>
+          <div style={{ ...panelStyle, width: isMobile ? "auto" : 220, padding: "12px 16px", ...(isMobile ? { position: "sticky", top: 0, zIndex: 100 } : {}) }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day: {gs.day}/{MAX_DAYS}</span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -1508,12 +1508,24 @@ function StreetWarsLondon() {
 @keyframes fadeMsg { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes achGlow { 0% { box-shadow: 0 0 12px rgba(242,138,31,0.8); border-color: #f28a1f; } 70% { box-shadow: 0 0 8px rgba(242,138,31,0.4); } 100% { box-shadow: none; border-color: #555555; } }`}</style>
 
-        {/* DRUG PANELS */}
-        <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: T.text, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Available drugs to buy</div>
+        {/* CENTER BUTTONS — always on top on mobile */}
+        {isMobile && (
+          <div style={{ display: "flex", gap: 6, width: "100%" }}>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, financePopup: true }))}>Finances</button>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, shopPopup: true }))}>🛒 Shop</button>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: true }))}>📊 History</button>
+            {gs.day === MAX_DAYS && (
+              <button style={{ ...btnStyle(true), flex: 1, fontSize: 11, padding: "6px", background: T.red, color: T.white }} onClick={endGame}>Cash Out</button>
+            )}
+          </div>
+        )}
+
+        {/* DRUG PANELS — always side by side */}
+        <div style={{ display: "flex", gap: 8, flexDirection: "row" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Available to buy</div>
             <div style={{ ...panelStyle, overflow: "hidden" }}>
-              <div style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
                 <span></span><span>Drug</span><span style={{ textAlign: "right" }}>Price</span>
               </div>
               {ITEMS.map((item, i) => {
@@ -1523,16 +1535,16 @@ function StreetWarsLondon() {
                 const isMega = gs.prices[i] > item.basePrice * 6;
                 return (
                   <div key={i} onClick={() => { setGs((p) => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); }}
-                    style={{ display: "grid", gridTemplateColumns: "20px 1fr 72px", fontFamily: font, fontSize: 12, padding: "6px 10px",
+                    style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: isMobile ? 11 : 12, padding: isMobile ? "5px 6px" : "6px 10px",
                       cursor: "pointer",
                       background: isMega ? "rgba(242,138,31,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
                       borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}
                     onMouseEnter={(e) => e.currentTarget.style.background = T.accentDim}
                     onMouseLeave={(e) => e.currentTarget.style.background = isMega ? "rgba(242,138,31,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)"}>
-                    <span style={{ fontSize: 11 }}>
+                    <span style={{ fontSize: 10 }}>
                       {up ? <span style={{ color: T.green }}>▲</span> : down ? <span style={{ color: T.red }}>▼</span> : <span style={{ color: T.textMuted }}>–</span>}
                     </span>
-                    <span style={{ color: isMega ? T.accent : T.text }}>{isMega ? "🔥 " : ""}{item.name}</span>
+                    <span style={{ color: isMega ? T.accent : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMega ? "🔥 " : ""}{item.name}</span>
                     <span style={{ textAlign: "right", color: T.accent }}>£{gs.prices[i].toLocaleString()}</span>
                   </div>
                 );
@@ -1540,24 +1552,26 @@ function StreetWarsLondon() {
             </div>
           </div>
 
-          {/* CENTER BUTTONS */}
-          <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 6, paddingTop: isMobile ? 0 : 22, width: isMobile ? "100%" : 108, alignItems: "center", order: isMobile ? -1 : 0 }}>
-            <button style={{ ...btnStyle(false), flex: isMobile ? 1 : undefined, width: isMobile ? undefined : "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, financePopup: true }))}>Finances</button>
-            <button style={{ ...btnStyle(false), flex: isMobile ? 1 : undefined, width: isMobile ? undefined : "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, shopPopup: true }))}>🛒 Shop</button>
-            <button style={{ ...btnStyle(false), flex: isMobile ? 1 : undefined, width: isMobile ? undefined : "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: true }))}>📊 History</button>
-            {gs.day === MAX_DAYS && (
-              <button style={{ ...btnStyle(true), flex: isMobile ? 1 : undefined, width: isMobile ? undefined : "100%", fontSize: 11, padding: "6px", background: T.red, color: T.white }} onClick={endGame}>Cash Out</button>
-            )}
-          </div>
+          {/* CENTER BUTTONS — desktop only (between panels) */}
+          {!isMobile && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 22, width: 108, alignItems: "center" }}>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, financePopup: true }))}>Finances</button>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, shopPopup: true }))}>🛒 Shop</button>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: true }))}>📊 History</button>
+              {gs.day === MAX_DAYS && (
+                <button style={{ ...btnStyle(true), width: "100%", fontSize: 11, padding: "6px", background: T.red, color: T.white }} onClick={endGame}>Cash Out</button>
+              )}
+            </div>
+          )}
 
           {/* STASH */}
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: 1 }}>Your stash to sell</span>
-              <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>{gs.jacketType === "goose" ? "🧥 Goose" : gs.jacketType === "moncler" ? "🧥 Moncler" : "Jacket"}: <span style={{ color: space <= 10 ? T.red : T.text }}>{space}/{gs.capacity}</span></span>
+              <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: 1 }}>Stash to sell</span>
+              <span style={{ fontFamily: font, fontSize: isMobile ? 10 : 11, color: T.textDim }}>{space}/{gs.capacity}</span>
             </div>
             <div style={{ ...panelStyle, overflow: "hidden", minHeight: isMobile ? 0 : 200 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 40px 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 30px 52px" : "1fr 40px 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
                 <span>Drug</span><span style={{ textAlign: "right" }}>Qty</span><span style={{ textAlign: "right" }}>Avg</span>
               </div>
               {stashItems.length === 0 ? (
@@ -1572,12 +1586,12 @@ function StreetWarsLondon() {
                   }
                   setGs((p) => ({ ...p, qtyPopup: { type: "sell", itemIdx: item.idx } })); setQtyInput("");
                 }}
-                  style={{ display: "grid", gridTemplateColumns: "1fr 40px 72px", fontFamily: font, fontSize: 12, padding: "6px 10px",
+                  style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 30px 52px" : "1fr 40px 72px", fontFamily: font, fontSize: isMobile ? 11 : 12, padding: isMobile ? "5px 6px" : "6px 10px",
                     cursor: "pointer",
                     background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)", borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}
                   onMouseEnter={(e) => e.currentTarget.style.background = T.accentDim}
                   onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)"}>
-                  <span style={{ color: T.text }}>{item.name}</span>
+                  <span style={{ color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
                   <span style={{ textAlign: "right", color: T.text }}>{item.qty}</span>
                   <span style={{ textAlign: "right", color: T.accent }}>£{item.avgPrice.toLocaleString()}</span>
                 </div>
