@@ -1176,8 +1176,8 @@ function StreetWarsLondon() {
                 )}
                 {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>You have: <span style={{ color: T.text }}>{maxSell}</span></div>}
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                  <input style={inputSt} type="number" inputMode="numeric" autoComplete="one-time-code" data-lpignore="true" min="1" max={maxQty} placeholder="Quantity..." value={qtyInput}
-                    onChange={(e) => setQtyInput(e.target.value)}
+                  <input style={inputSt} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" autoCorrect="off" autoCapitalize="off" data-lpignore="true" data-form-type="other" placeholder="Quantity..." value={qtyInput}
+                    onChange={(e) => setQtyInput(e.target.value.replace(/[^0-9]/g, ""))}
                     onKeyDown={(e) => { if (e.key === "Enter" && amt > 0) { isBuy ? doBuy(q.itemIdx, amt) : doSell(q.itemIdx, amt); setQtyInput(""); } }} autoFocus />
                   <button style={{ ...btnStyle(false), padding: "6px 10px", fontSize: 11, whiteSpace: "nowrap" }}
                     onClick={() => setQtyInput(String(maxQty))}>Max ({maxQty})</button>
@@ -1229,8 +1229,8 @@ function StreetWarsLondon() {
 
               {/* INPUT + MAX + ACTION */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}>
-                <input style={inputSt} type="number" inputMode="numeric" autoComplete="one-time-code" data-lpignore="true" placeholder="Amount..." value={gs.finAmt}
-                  onChange={(e) => setGs((p) => ({ ...p, finAmt: e.target.value }))}
+                <input style={inputSt} type="text" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" autoCorrect="off" autoCapitalize="off" data-lpignore="true" data-form-type="other" placeholder="Amount..." value={gs.finAmt}
+                  onChange={(e) => setGs((p) => ({ ...p, finAmt: e.target.value.replace(/[^0-9]/g, "") }))}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter") return;
                     const a = parseInt(gs.finAmt); if (!a || a <= 0) return;
