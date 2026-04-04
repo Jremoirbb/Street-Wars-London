@@ -108,7 +108,7 @@ async function loadLeaderboard() {
 
 async function upsertBestScore(name, score) {
   if (!supabaseEnabled() || !name || typeof score !== "number" || !isFinite(score)) return;
-  const capped = Math.max(-1000000, Math.min(10000000, Math.round(score)));
+  const capped = Math.max(-10000000, Math.min(100000000, Math.round(score)));
   const existing = await supaFetch(`/leaderboard?player_name=eq.${encodeURIComponent(name)}&select=score`);
   if (Array.isArray(existing) && existing.length > 0) {
     if (capped > existing[0].score) {
