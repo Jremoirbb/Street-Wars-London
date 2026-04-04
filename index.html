@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#2d2d2d">
+  <title>Street Wars London</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { height: 100%; background: #2d2d2d; max-width: 100vw; overflow-x: clip; }
+    body { -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  
+  <!-- Tone.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.min.js"></script>
+  
+  <!-- Babel standalone for JSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+
+  <script type="text/babel" data-type="module">
+const { useState, useEffect, useCallback, useRef } = React;
+// Tone.js loaded from CDN global
+
+// ——— SOUND EFFECTS ———
+let audioStarted = false;
+const ensureAudio = async () => { if (!audioStarted) { await Tone.start(); audioStarted = true; } };
+let muted = false;
+const SFX = {
+  buy: async () => { if (muted) return; await ensureAudio();
+    const c = new Tone.NoiseSynth({noise:{type:"white"},envelope:{attack:0.001,decay:0.04,sustain:0,release:0.01},volume:-16}).toDestination();
+    const p = new Tone.Synth({oscillator:{type:"sine"},envelope:{attack:0.001,decay:0.15,sustain:0,release:0.1},volume:-10}).toDestination();
+    c.triggerAttackRelease("32n"); setTimeout(()=>p.triggerAttackRelease("E6","16n"),30); setTimeout(()=>{c.dispose();p.dispose();},400);
+  },
+  sell: async () => { if (muted) return; await ensureAudio();
+    const p = new Tone.Synth({oscillator:{type:"sine"},envelope:{attack:0.001,decay:0.08,sustain:0,release:0.05},volume:-10}).toDestination();
+    p.triggerAttackRelease("G6","32n"); setTimeout(()=>p.triggerAttackRelease("D6","32n"),70); setTimeout(()=>p.triggerAttackRelease("G5","32n"),140); setTimeout(()=>p.dispose(),400);
+  },
+  travel: async () => { if (muted) return; await ensureAudio();
+    const f = new Tone.Filter({frequency:200,type:"bandpass",Q:2}).toDestination();
+    const n = new Tone.NoiseSynth({noise:{type:"pink"},envelope:{attack:0.05,decay:0.3,sustain:0,release:0.1},volume:-10}).connect(f);
+    f.frequency.rampTo(3000,0.15); f.frequency.rampTo(200,0.2,"+0.15"); n.triggerAttackRelease("8n"); setTimeout(()=>{n.dispose();f.dispose();},600);
+  },
+  police: async () => { if (muted) return; await ensureAudio();
+    const o = new Tone.Oscillator({type:"sawtooth",frequency:600,volume:-12}).toDestination();
+    const f = new Tone.Filter({frequency:2000,type:"lowpass"}).toDestination(); o.disconnect(); o.connect(f); o.start();
+    const sw=(t)=>{o.frequency.setValueAtTime(600,Tone.now()+t);o.frequency.linearRampToValueAtTime(900,Tone.now()+t+0.15);o.frequency.linearRampToValueAtTime(600,Tone.now()+t+0.3);};
+    sw(0);sw(0.3);sw(0.6);sw(0.9); setTimeout(()=>{o.stop();o.dispose();f.dispose();},1300);
+  },
+  trouble: async () => { if (muted) return; await ensureAudio();
+    const t = new Tone.MembraneSynth({pitchDecay:0.08,octaves:4,envelope:{attack:0.001,decay:0.3,sustain:0,release:0.1},volume:-8}).toDestination();
+    const n = new Tone.NoiseSynth({noise:{type:"brown"},envelope:{attack:0.001,decay:0.15,sustain:0,release:0.05},volume:-14}).toDestination();
+    t.triggerAttackRelease("C1","8n"); n.triggerAttackRelease("16n"); setTimeout(()=>{t.dispose();n.dispose();},500);
+  },
+  lucky: async () => { if (muted) return; await ensureAudio();
+    const c = new Tone.NoiseSynth({noise:{type:"white"},envelope:{attack:0.001,decay:0.03,sustain:0,release:0.01},volume:-14}).toDestination();
+    const b = new Tone.Synth({oscillator:{type:"sine"},envelope:{attack:0.001,decay:0.3,sustain:0,release:0.2},volume:-8}).toDestination();
+    const b2 = new Tone.Synth({oscillator:{type:"sine"},envelope:{attack:0.001,decay:0.4,sustain:0,release:0.3},volume:-6}).toDestination();
+    c.triggerAttackRelease("32n"); setTimeout(()=>b.triggerAttackRelease("E6","8n"),40); setTimeout(()=>b2.triggerAttackRelease("A6","4n"),120); setTimeout(()=>{c.dispose();b.dispose();b2.dispose();},800);
+  },
+  broke: async () => { if (muted) return; await ensureAudio();
+    const o = new Tone.Oscillator({type:"sawtooth",frequency:400,volume:-10}).toDestination();
+    const f = new Tone.Filter({frequency:2000,type:"lowpass"}).toDestination(); o.disconnect(); o.connect(f); o.start();
+    o.frequency.linearRampToValueAtTime(80,Tone.now()+1.2); f.frequency.linearRampToValueAtTime(200,Tone.now()+1.2); o.volume.linearRampToValueAtTime(-40,Tone.now()+1.5);
+    setTimeout(()=>{o.stop();o.dispose();f.dispose();},1600);
+  },
+  milestone: async () => { if (muted) return; await ensureAudio();
+    const p1 = new Tone.Synth({oscillator:{type:"triangle"},envelope:{attack:0.001,decay:0.15,sustain:0.05,release:0.3},volume:-8}).toDestination();
+    const p2 = new Tone.Synth({oscillator:{type:"triangle"},envelope:{attack:0.001,decay:0.2,sustain:0.05,release:0.4},volume:-6}).toDestination();
+    p1.triggerAttackRelease("C6","16n"); setTimeout(()=>p2.triggerAttackRelease("G6","8n"),100); setTimeout(()=>{p1.dispose();p2.dispose();},700);
+  },
+};
+
+// ——— SUPABASE CONFIG ———
+// Replace these with your Supabase project values (Settings → API)
+// The anon key is designed to be public — RLS policies restrict what it can do
+const SUPABASE_URL = "https://nizekjtkeyzslnxhalji.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pemVranRrZXl6c2xueGhhbGppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyMzk0MDgsImV4cCI6MjA5MDgxNTQwOH0.t2IM_RgbNccoMMwmWdYl1zPU-FkkGrrMl1-eK7rI3Fc";
+
+const supabaseEnabled = () => SUPABASE_URL !== "YOUR_SUPABASE_URL_HERE" && SUPABASE_KEY !== "YOUR_SUPABASE_ANON_KEY_HERE";
+
+async function supaFetch(path, options = {}) {
+  if (!supabaseEnabled()) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1${path}`, {
+      ...options,
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json", Prefer: options.prefer || "", ...options.headers },
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+  } catch (e) { return null; }
+}
+
+async function loadLeaderboard() {
+  const data = await supaFetch("/leaderboard?select=player_name,score,played_at&order=score.desc&limit=10");
+  if (Array.isArray(data)) return data.map((r) => ({ name: r.player_name, score: r.score }));
+  return [];
+}
+
+async function upsertBestScore(name, score) {
+  if (!supabaseEnabled() || !name || typeof score !== "number" || !isFinite(score)) return;
+  const capped = Math.max(-1000000, Math.min(10000000, Math.round(score)));
+  const existing = await supaFetch(`/leaderboard?player_name=eq.${encodeURIComponent(name)}&select=score`);
+  if (Array.isArray(existing) && existing.length > 0) {
+    if (capped > existing[0].score) {
+      await supaFetch(`/leaderboard?player_name=eq.${encodeURIComponent(name)}`, {
+        method: "PATCH", prefer: "return=minimal",
+        body: JSON.stringify({ score: capped, played_at: new Date().toISOString() }),
+      });
+    }
+  } else {
+    await supaFetch("/leaderboard", {
+      method: "POST", prefer: "return=minimal",
+      body: JSON.stringify({ player_name: name, score: capped }),
+    });
+  }
+}
+
+// ——— LOCAL STORAGE WRAPPER (works in Claude artifacts + standalone) ———
+const store = {
+  async get(key) {
+    try {
+      if (typeof window !== "undefined" && window.storage && typeof window.storage.get === "function") {
+        const res = await window.storage.get(key);
+        return res && res.value ? res.value : null;
+      }
+      return localStorage.getItem(key);
+    } catch (e) { return null; }
+  },
+  async set(key, value) {
+    try {
+      if (typeof window !== "undefined" && window.storage && typeof window.storage.set === "function") {
+        await window.storage.set(key, value);
+      } else {
+        localStorage.setItem(key, value);
+      }
+    } catch (e) {}
+  },
+};
+
+function safeParse(json, fallback) {
+  try { return json ? JSON.parse(json) : fallback; } catch (e) { return fallback; }
+}
+
+// ——— INPUT SANITISATION & PROFANITY FILTER ———
+const BLOCKED_WORDS = new Set([
+  "fuck","shit","cunt","dick","cock","piss","twat","wank","arse","tits",
+  "bitch","slut","whore","prick","bollocks","bastard",
+  "nigger","nigga","niga","nigg","chink","spic","kike","gook","wetback",
+  "faggot","fag","dyke","retard",
+  "fuk","fck","fuq","sht","cnt","dck","btch","stfu",
+]);
+const LEET_MAP = { "0":"o","1":"i","3":"e","4":"a","5":"s","7":"t","@":"a","$":"s","!":"i" };
+
+function normaliseForCheck(str) {
+  return str.toLowerCase().replace(/[0134579@$!]/g, (c) => LEET_MAP[c] || c).replace(/[^a-z]/g, "");
+}
+function containsProfanity(name) {
+  const norm = normaliseForCheck(name);
+  for (const word of BLOCKED_WORDS) { if (norm.includes(word)) return true; }
+  return false;
+}
+function sanitiseName(raw) {
+  return raw.replace(/<[^>]*>/g, "").replace(/[^a-zA-Z0-9 \-_]/g, "").slice(0, 20);
+}
+
+// ——— DATA ———
+const BOROUGHS = [
+  { name: "Lewisham", locations: ["Catford","Deptford","New Cross","Brockley","Lee","Hither Green"] },
+  { name: "Southwark", locations: ["Peckham","Bermondsey","Elephant & Castle","Camberwell","Borough","Walworth"] },
+  { name: "Camden", locations: ["Camden Town","Kentish Town","Chalk Farm","King's Cross","Holloway","Hampstead"] },
+  { name: "Wandsworth", locations: ["Battersea","Tooting","Clapham","Putney","Balham","Wandsworth Town"] },
+  { name: "Westminster", locations: ["Soho","Mayfair","Pimlico","Marylebone","Paddington","Victoria"] },
+  { name: "Hackney", locations: ["Dalston","Shoreditch","Stoke Newington","Clapton","Homerton","Hackney Central"] },
+];
+
+const ITEMS = [
+  { name: "Acid", basePrice: 1200, volatility: 2.2 },
+  { name: "Cocaine", basePrice: 18000, volatility: 1.8 },
+  { name: "Crack", basePrice: 1500, volatility: 2.0 },
+  { name: "Hashish", basePrice: 800, volatility: 1.8 },
+  { name: "Heroin", basePrice: 8000, volatility: 2.0 },
+  { name: "Ecstasy", basePrice: 25, volatility: 2.5 },
+  { name: "Mushrooms", basePrice: 600, volatility: 2.5 },
+  { name: "Opium", basePrice: 500, volatility: 2.0 },
+  { name: "Speed", basePrice: 150, volatility: 2.2 },
+  { name: "Weed", basePrice: 400, volatility: 1.8 },
+];
+
+const POPUP_EVENTS = [
+  { title: "Police!", icon: "🚨", prob: 0.15, effect: "police_search",
+    msgs: [
+      "STOP! Metropolitan Police! You're surrounded!",
+      "Undercover officers from an unmarked car! \"Don't move!\"",
+      "Police helicopter over {location}. Officers flood the area.",
+      "Sniffer dogs at the Tube station! Officer pulls you aside.",
+    ]},
+  { title: "Trouble!", icon: "🔪", prob: 0.15, effect: "mugging",
+    msgs: [
+      "Two lads corner you. \"Cash, now.\" You hand over £{lostcash}.",
+      "Bumped on the high street. £{lostcash} gone. Classic move.",
+      "Yutes on E bikes. They take £{lostcash} and some {item}.",
+      "You got caught off the ends! You got dipped and lost £{lostcash}. Lock in bro!",
+    ]},
+  { title: "Evening Standard", icon: "📰", prob: 0.15, effect: "price_change",
+    msgs: [
+      "BREAKING: Major FED operation in {location}! Street prices for {item} expected to surge.|spike",
+      "Contaminated batch of {item} found in {location}. Dealers scrambling for clean supply.|spike",
+      "New mayor vows crackdown on dealing in {location}. {item} supply drying up.|spike",
+      "City boys flooding {location} on a bender! Demand for {item} through the roof.|spike",
+      "Massive {item} shipment just landed in {location}. Market is flooded.|crash",
+      "Rival crew dumping cheap {item} all over {location}. Prices tanking.|crash",
+      "Police raids in {location} cleared out the competition. {item} going cheap.|crash",
+    ]},
+  { title: "Word on the Street", icon: "🗣️", prob: 0.10, effect: "tip",
+    msgs: [
+      "Donny texts: \"Big party tomorrow in {tipLocation}. {item} gonna be expensive. Stock up NOW.\"",
+      "Overheard on road: \"{item} flooding into {tipLocation} tomorrow. Prices gonna crash. Head there to buy cheap.\"",
+      "Cuzzy came through: \"{item} is about to blow up in {tipLocation}. Get there and sell while you can.\"",
+      "Barber shop: \"Feds just seized a load of {item} heading to {tipLocation}. Price gonna skyrocket there tomorrow.\"",
+      "Your connect calls: \"Big shipment of {item} landing in {tipLocation}. Prices dropping hard. Go grab some.\"",
+      "Runner whispers: \"Everyone in {tipLocation} wants {item} right now. Head there, you'll get top dollar.\"",
+    ]},
+  { title: "Strange Encounter", icon: "👵", prob: 0.08, effect: "character_deal",
+    msgs: [
+      "An old woman on the bus whispers: \"My grandson left some {item} at mine. £{lowprice} for {qty} units.\"",
+      "Granny with a shopping trolley: \"Found {item} in my late husband's shed. Want it for £{lowprice}?\"",
+      "Elderly lady at the chippy: \"Don't trust anyone in {location}, dear. Filth are everywhere.\"",
+      "Man on the bus eating a full roast dinner from a tupperware. He nods at you. You nod back.",
+      "Two drunk girls having a madness outside the chicken shop. You keep it moving.",
+      "Sweet old nan hands you £{smallcash}: \"You remind me of my grandson.\"",
+      "You caught your ops slipping! You grabbed yourself £{smallcash}.",
+    ]},
+  { title: "Street Deal", icon: "🤝", prob: 0.08, effect: "cheap_offer",
+    msgs: [
+      "Shifty bloke: \"Bruv, {qty} {item} going cheap. £{lowprice} for the lot.\"",
+      "Unknown number texts: \"Premium {item}, just arrived. {qty} units, £{lowprice}.\"",
+      "Man in a Range Rover: \"Need to shift {qty} {item} fast. £{lowprice}.\"",
+    ]},
+  { title: "Lucky Day", icon: "🎰", prob: 0.05, effect: "free_cash",
+    msgs: [
+      "Found an envelope behind a bin — £{bigcash} inside!",
+      "Someone dropped their wallet. £{bigcash} in cash. Finders keepers.",
+      "Scratch card winner — £{bigcash}!",
+    ]},
+  { title: "🔥 PRICE SURGE", icon: "🔥", prob: 0.05, effect: "mega_spike",
+    msgs: [
+      "EMERGENCY: {item} supply has completely collapsed! Prices are going MENTAL around {location}!",
+      "Every dealer wants {item} right now. Head to {location} if you're holding.",
+      "Underground rave in {location} — {item} demand has gone through the roof!",
+    ]},
+];
+
+const MAX_DAYS = 30;
+const INITIAL_CASH = 2000;
+const INITIAL_DEBT = 5500;
+const INITIAL_CAPACITY = 100;
+const DEBT_INTEREST = 0.10;
+
+function generatePrices() {
+  return ITEMS.map((item) => {
+    const mult = 0.2 + Math.random() * item.volatility;
+    return Math.max(1, Math.round(item.basePrice * mult));
+  });
+}
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function generateAvail() {
+  const avail = ITEMS.map(() => true);
+  const r = Math.random();
+  const hideCount = r < 0.60 ? 0 : r < 0.85 ? 1 : r < 0.95 ? 2 : 3;
+  if (hideCount === 0) return avail;
+  const indices = [...Array(ITEMS.length).keys()];
+  for (let i = 0; i < hideCount; i++) {
+    const p = Math.floor(Math.random() * indices.length);
+    avail[indices[p]] = false;
+    indices.splice(p, 1);
+  }
+  return avail;
+}
+
+function getInitialState() {
+  const prices = generatePrices();
+  const drugAvail = generateAvail();
+  return {
+    phase: "title", day: 1, cash: INITIAL_CASH, debt: INITIAL_DEBT, bank: 0,
+    borough: Math.floor(Math.random() * BOROUGHS.length),
+    location: Math.floor(Math.random() * 6),
+    capacity: INITIAL_CAPACITY,
+    inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0),
+    prices, prevPrices: prices, drugAvail,
+    priceHistory: [],
+    reputation: 0,
+    policeCount: 0, muggingCount: 0, tradeCount: 0, dumpCount: 0,
+    greezyStage: 0, // 0=nothing, 1=warning sent, 2=first visit, 3=hospital
+    greezyDay: 0, // day when next Greezy event can fire
+    milestones: {}, // { key: true } for fired milestones
+    milestoneToast: null, // { icon, text } for current toast
+    shiftyTier: 0, // 0=not bought, 1/2/3=which tier bought
+    shiftyUses: 0, // remaining uses at current tier
+    shiftyEverBought: false, // permanent +8% mugging once bought
+    shiftyCooldown: 0, // travels until Shifty is available again
+    jamalActive: false, // currently hired
+    jamalBlocks: 0, // mugging blocks remaining
+    jamalCooldown: 0, // travels until can re-hire
+    jamalEverHired: false, // permanent flag for mutual exclusivity
+    jacketType: "basic",
+    popup: null, qtyPopup: null,
+    travelPopup: false, travelBorough: null,
+    financePopup: false, finTab: "deposit", priceHistoryPopup: false, shopPopup: false,
+    eventMsg: null, eventType: "neutral", eventFades: false, eventFaded: false,
+    tradeMsg: null, // separate from eventMsg so news doesn't get overwritten
+    activeTip: null, // { itemIdx, borough, location, type: "cheap"|"expensive" }
+    pendingNews: null, // { itemIdx, borough, location, type: "spike"|"crash"|"mega" }
+    playerName: "", finAmt: "", muted: false,
+  };
+}
+
+function totalInventory(inv) { return inv.reduce((a, b) => a + b, 0); }
+function netWorth(s) { return s.cash + s.bank - s.debt; }
+
+function dayMsg(day) {
+  if (day === 25) return "⏰ 5 days left. Time's running out.";
+  if (day === 27) return "⏰ 3 days left. Make it count.";
+  if (day === 29) return "⏰ Tomorrow's your last day. Sell everything or go broke.";
+  if (day === 30) return "⏰ LAST DAY. Cash out or lose everything.";
+  return null;
+}
+
+function StreetWarsLondon() {
+  const [gs, setGs] = useState(getInitialState);
+  const [qtyInput, setQtyInput] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [winWidth, setWinWidth] = useState(typeof window !== "undefined" ? window.innerWidth : 800);
+  useEffect(() => {
+    const h = () => setWinWidth(window.innerWidth);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
+  }, []);
+  const isMobile = winWidth < 600;
+  const [career, setCareer] = useState({ games: 0, totalEarnings: 0, bestScore: 0, bestStreak: 0, currentStreak: 0, totalPolice: 0, totalTrades: 0, totalMuggings: 0 });
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [achievements, setAchievements] = useState({});
+  const [newUnlocks, setNewUnlocks] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await store.get("sw_career_stats");
+        if (raw) setCareer(safeParse(raw, career));
+      } catch (e) {}
+      try {
+        const raw = await store.get("sw_achievements");
+        if (raw) setAchievements(safeParse(raw, {}));
+      } catch (e) {}
+      try {
+        const lb = await loadLeaderboard();
+        if (lb.length > 0) setLeaderboard(lb);
+      } catch (e) {}
+    })();
+  }, []);
+
+  useEffect(() => { muted = gs.muted; }, [gs.muted]);
+
+  // Track state for event probability (module-level access in callbacks)
+  const jacketRef = useRef("basic");
+  useEffect(() => { jacketRef.current = gs.jacketType; }, [gs.jacketType]);
+  const shiftyBoughtRef = useRef(false);
+  useEffect(() => { shiftyBoughtRef.current = gs.shiftyEverBought; }, [gs.shiftyEverBought]);
+  const jamalRef = useRef(false);
+  useEffect(() => { jamalRef.current = gs.jamalActive; }, [gs.jamalActive]);
+  const jamalBlocksRef = useRef(0);
+  useEffect(() => { jamalBlocksRef.current = gs.jamalBlocks; }, [gs.jamalBlocks]);
+
+  // Broke check
+  useEffect(() => {
+    if (gs.phase !== "playing" || gs.popup) return;
+    const cheapest = Math.min(...gs.prices);
+    if (gs.cash < cheapest && totalInventory(gs.inventory) === 0 && gs.bank <= 0) {
+      SFX.broke();
+      setGs((p) => ({ ...p, popup: { title: "Game Over", icon: "💀",
+        message: `You're broke! £${p.cash.toLocaleString()} won't buy anything. No stock, nothing in the bank.\n\nThe streets have chewed you up and spat you out.`,
+        buttons: [{ label: "Start Over", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }] } }));
+    }
+  }, [gs.cash, gs.bank, gs.inventory, gs.prices, gs.phase, gs.popup]);
+
+  const dismissPopup = useCallback(() => setGs((p) => ({ ...p, popup: null })), []);
+  const mkPopup = (title, icon, message, buttons) => ({ title, icon, message, buttons });
+
+  // ——— DUMP ALL INVENTORY ———
+  const dumpAll = useCallback(() => {
+    setGs((p) => ({
+      ...p, inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0), popup: null, dumpCount: p.dumpCount + 1,
+      eventMsg: "Dumped everything. You're clean.", eventType: "neutral",
+    }));
+  }, []);
+
+  const triggerEvent = useCallback(() => {
+    for (const ev of POPUP_EVENTS) {
+      let prob = ev.prob;
+      if (ev.effect === "mugging") {
+        const jt = jacketRef.current;
+        prob += jt === "goose" ? 0.08 : jt === "moncler" ? 0.05 : 0;
+        if (shiftyBoughtRef.current) prob += 0.08; // snitch tax
+      }
+      if (ev.effect === "police_search" && jamalRef.current) {
+        prob += 0.08; // police looking for Jamal
+      }
+      if (Math.random() >= prob) continue;
+      const itemIdx = Math.floor(Math.random() * ITEMS.length);
+      const itemName = ITEMS[itemIdx].name;
+      // Pick a linked borough + location so they always match
+      const randBoroughIdx = Math.floor(Math.random() * BOROUGHS.length);
+      const randBorough = BOROUGHS[randBoroughIdx];
+      const randLocIdx = Math.floor(Math.random() * randBorough.locations.length);
+      const locName = randBorough.locations[randLocIdx];
+      const areaName = randBorough.name;
+      const qty = Math.floor(Math.random() * 15) + 5;
+      const lowprice = Math.max(10, Math.round(ITEMS[itemIdx].basePrice * (0.1 + Math.random() * 0.3)));
+      const smallcash = Math.floor(Math.random() * 300) + 100;
+      const bigcash = Math.floor(Math.random() * 1500) + 500;
+      const lostcash = Math.floor(Math.random() * 800) + 300; // higher mugging amounts
+      const coatprice = Math.floor(Math.random() * 400) + 300;
+      // Tip target — random borough + location for actionable tips
+      const tipBoroughIdx = Math.floor(Math.random() * BOROUGHS.length);
+      const tipLocIdx = Math.floor(Math.random() * BOROUGHS[tipBoroughIdx].locations.length);
+      const tipLocationName = BOROUGHS[tipBoroughIdx].locations[tipLocIdx];
+      let msg = pick(ev.msgs).replace(/{item}/g, itemName).replace(/{location}/g, locName).replace(/{area}/g, areaName)
+        .replace(/{tipLocation}/g, tipLocationName)
+        .replace(/{qty}/g, qty).replace(/{lowprice}/g, lowprice.toLocaleString())
+        .replace(/{smallcash}/g, smallcash.toLocaleString()).replace(/{bigcash}/g, bigcash.toLocaleString())
+        .replace(/{lostcash}/g, lostcash.toLocaleString()).replace(/{coatprice}/g, coatprice.toLocaleString());
+
+      switch (ev.effect) {
+        case "price_change": {
+          const newsType = msg.endsWith("|spike") ? "spike" : "crash";
+          msg = msg.replace(/\|(spike|crash)$/, "");
+          setGs((prev) => ({
+            ...prev, eventMsg: msg, eventType: "neutral", eventFades: true,
+            pendingNews: { itemIdx, borough: randBoroughIdx, location: randLocIdx, type: newsType },
+            popup: mkPopup(ev.title, ev.icon, msg, [{ label: "OK", action: "dismiss" }]),
+          })); return;
+        }
+
+        case "mega_spike":
+          setGs((prev) => ({
+            ...prev, eventMsg: `🔥 ${itemName} prices going MENTAL around ${locName}!`, eventType: "good", eventFades: true,
+            pendingNews: { itemIdx, borough: randBoroughIdx, location: randLocIdx, type: "mega" },
+            popup: mkPopup(ev.title, ev.icon, msg, [{ label: "Let's go!", action: "dismiss" }]),
+          })); return;
+
+        case "character_deal": {
+          if (msg.includes("hands you") || msg.includes("ops slipping")) {
+            SFX.lucky();
+            const btnLabel = msg.includes("ops slipping") ? "Say less" : "Thanks nan!";
+            setGs((p) => ({ ...p, cash: p.cash + smallcash, eventMsg: msg, eventType: "good", popup: mkPopup(ev.title, ev.icon, msg, [{ label: btnLabel, action: "dismiss" }]) }));
+          } else if (msg.includes("Filth") || msg.includes("nods at you") || msg.includes("keep it moving")) {
+            const btn = msg.includes("nods at you") ? "Respect" : msg.includes("keep it moving") ? "Swerve" : "Cheers love";
+            setGs((p) => ({ ...p, eventMsg: msg, eventType: "neutral", eventFades: true, popup: mkPopup(ev.title, ev.icon, msg, [{ label: btn, action: "dismiss" }]) }));
+          } else {
+            setGs((prev) => {
+              const space = prev.capacity - totalInventory(prev.inventory);
+              const canBuy = prev.cash >= lowprice && space >= qty;
+              return { ...prev, eventMsg: msg, eventType: "neutral", popup: mkPopup(ev.title, ev.icon, msg,
+                canBuy
+                  ? [{ label: `Buy (£${lowprice.toLocaleString()})`, action: () => setGs((p) => {
+                      const inv = [...p.inventory]; const avg = [...p.avgCost];
+                      const oldTotal = avg[itemIdx] * inv[itemIdx]; inv[itemIdx] += qty;
+                      avg[itemIdx] = Math.round((oldTotal + lowprice) / inv[itemIdx]);
+                      return { ...p, cash: p.cash - lowprice, inventory: inv, avgCost: avg, popup: null, eventMsg: `Bought ${qty} ${itemName} for £${lowprice.toLocaleString()}`, eventType: "good" };
+                    })}, { label: "No thanks", action: "dismiss" }]
+                  : [{ label: prev.cash < lowprice ? "Can't afford it!" : "No room!", action: "dismiss" }]
+              )};
+            });
+          } return;
+        }
+
+        case "police_search":
+          SFX.police();
+          setGs((prev) => {
+            const hasGear = totalInventory(prev.inventory) > 0;
+
+            if (!hasGear) {
+              return { ...prev, policeCount: prev.policeCount + 1, eventMsg: "Police searched you — clean!", eventType: "good",
+                popup: mkPopup(ev.title, ev.icon, msg + "\n\nNothing found. You walk free.", [{ label: "Phew!", action: "dismiss" }]) };
+            }
+
+            // Has gear — build options
+            const options = [];
+
+            // Mention Shifty option (only if has uses AND not on cooldown)
+            if (prev.shiftyUses > 0 && prev.shiftyCooldown <= 0) {
+              options.push({ label: `🐷 Mention Shifty (${prev.shiftyUses} left)`, primary: true, action: () => {
+                const cooldown = 3 + Math.floor(Math.random() * 2);
+                setGs((p) => ({ ...p, shiftyUses: p.shiftyUses - 1, shiftyCooldown: cooldown, popup: null,
+                  eventMsg: "You dropped Shifty's name. The feds winked and let you through.", eventType: "good" }));
+                fireMilestone("shifty", "🐷", "Shifty came through. Worth every penny.");
+              }});
+            }
+
+            const shiftyAvail = prev.shiftyUses > 0 && prev.shiftyCooldown <= 0;
+            options.push({ label: "🏃 Run", primary: !shiftyAvail, action: () => {
+              const escaped = Math.random() < 0.35;
+              if (escaped) {
+                setGs((p) => ({ ...p, popup: null, eventMsg: "You legged it! Got away clean.", eventType: "good", reputation: p.reputation + 3 }));
+                fireMilestone("escaped", "🏃", "Left them in the dust.");
+              } else {
+                setGs((p) => {
+                  const inv = [...p.inventory]; const avg = [...p.avgCost];
+                  let maxIdx = 0; inv.forEach((q, i) => { if (q > inv[maxIdx]) maxIdx = i; });
+                  const lost = Math.ceil(inv[maxIdx] * (0.7 + Math.random() * 0.1));
+                  inv[maxIdx] = Math.max(0, inv[maxIdx] - lost);
+                  if (inv[maxIdx] === 0) avg[maxIdx] = 0;
+                  const fine = Math.min(Math.floor(p.cash * 0.2), p.cash);
+                  const newDay = Math.min(p.day + 1, MAX_DAYS);
+                  return { ...p, inventory: inv, avgCost: avg, cash: p.cash - fine, day: newDay, popup: null,
+                    eventMsg: `Caught running! Lost ${lost} ${ITEMS[maxIdx].name}, fined £${fine.toLocaleString()}. Night in the cells — lost a day.`, eventType: "bad" };
+                });
+              }
+            }});
+
+            options.push({ label: "🗑️ Dump everything", action: () => {
+              setGs((p) => ({
+                ...p, inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0), popup: null, dumpCount: p.dumpCount + 1,
+                eventMsg: "You dumped everything before they got to you. Clean, but empty-handed.", eventType: "bad",
+              }));
+            }});
+
+            options.push({ label: "🤲 Surrender", action: () => {
+              setGs((p) => {
+                const inv = [...p.inventory]; const avg = [...p.avgCost];
+                let maxIdx = 0; inv.forEach((q, i) => { if (q > inv[maxIdx]) maxIdx = i; });
+                const lost = Math.ceil(inv[maxIdx] * (0.6 + Math.random() * 0.2));
+                inv[maxIdx] = Math.max(0, inv[maxIdx] - lost);
+                if (inv[maxIdx] === 0) avg[maxIdx] = 0;
+                const newDay = Math.min(p.day + 1, MAX_DAYS);
+                return { ...p, inventory: inv, avgCost: avg, day: newDay, popup: null,
+                  eventMsg: `Surrendered. They seized ${lost} ${ITEMS[maxIdx].name}. Night in the cells — lost a day.`, eventType: "bad" };
+              });
+            }});
+
+            return { ...prev, policeCount: prev.policeCount + 1, eventMsg: msg, eventType: "bad",
+              popup: mkPopup(ev.title, ev.icon, msg + "\n\nYou've got gear on you. This is bad. What do you do?", options) };
+          }); return;
+
+        case "cheap_offer":
+          setGs((prev) => {
+            const space = prev.capacity - totalInventory(prev.inventory);
+            const canBuy = prev.cash >= lowprice && space >= qty;
+            return { ...prev, eventMsg: msg, eventType: "neutral", popup: mkPopup(ev.title, ev.icon, msg,
+              canBuy
+                ? [{ label: `Buy (£${lowprice.toLocaleString()})`, action: () => setGs((p) => {
+                    const inv = [...p.inventory]; const avg = [...p.avgCost];
+                    const oldTotal = avg[itemIdx] * inv[itemIdx]; inv[itemIdx] += qty;
+                    avg[itemIdx] = Math.round((oldTotal + lowprice) / inv[itemIdx]);
+                    return { ...p, cash: p.cash - lowprice, inventory: inv, avgCost: avg, popup: null, eventMsg: `Bought ${qty} ${itemName} for £${lowprice.toLocaleString()}`, eventType: "good" };
+                  })}, { label: "Walk away", action: "dismiss" }]
+                : [{ label: prev.cash < lowprice ? "Can't afford it" : "No room", action: "dismiss" }]
+            )};
+          }); return;
+
+        case "tip": {
+          // Determine if tip is about high prices (sell opportunity) or low prices (buy opportunity)
+          const isExpensive = msg.includes("expensive") || msg.includes("blow up") || msg.includes("skyrocket") || msg.includes("top dollar");
+          setGs((p) => ({
+            ...p, eventMsg: msg, eventType: "good", eventFades: true,
+            activeTip: { itemIdx, borough: tipBoroughIdx, location: tipLocIdx, type: isExpensive ? "expensive" : "cheap" },
+            popup: mkPopup(ev.title, ev.icon, msg, [{ label: "Good looking out", action: "dismiss" }]),
+          })); return;
+        }
+
+        case "free_cash":
+          SFX.lucky();
+          setGs((p) => ({ ...p, cash: p.cash + bigcash, eventMsg: `Found £${bigcash.toLocaleString()}!`, eventType: "good", popup: mkPopup(ev.title, ev.icon, msg, [{ label: "Nice one!", action: "dismiss" }]) })); return;
+
+        case "mugging":
+          // Jamal blocks mugging
+          if (jamalRef.current && jamalBlocksRef.current > 0) {
+            setGs((prev) => {
+              const newBlocks = prev.jamalBlocks - 1;
+              const jamalGone = newBlocks <= 0;
+              const cooldown = jamalGone ? 5 + Math.floor(Math.random() * 4) : 0;
+              return { ...prev, jamalBlocks: newBlocks, muggingCount: prev.muggingCount + 1,
+                jamalActive: !jamalGone, jamalCooldown: cooldown,
+                eventMsg: jamalGone ? "Jamal stepped up — but then had to dip. He's gone ghost." : "Jamal stepped up. They clocked him and backed off.",
+                eventType: "good",
+                popup: mkPopup("Trouble!", "🔪", jamalGone
+                  ? "Some yutes tried it. Jamal handled them — but feds were watching. He had to run.\n\nJamal's gone ghost. He'll be back when things cool down."
+                  : "Some yutes tried it. Jamal stepped forward and they backed off.\n\n\"Not today, fam.\"",
+                  [{ label: jamalGone ? "Safe Jamal" : "My guy", action: "dismiss" }]) };
+            });
+            return;
+          }
+          SFX.trouble();
+          setGs((prev) => {
+            // Cash loss is 15-30% of what you're carrying — banking is strategic
+            const pct = 0.15 + Math.random() * 0.15;
+            const actual = Math.min(prev.cash, Math.max(50, Math.floor(prev.cash * pct)));
+            const inv = [...prev.inventory]; const avg = [...prev.avgCost];
+            const carrying = inv.reduce((a, b) => a + b, 0);
+            if (carrying > 0) {
+              const targetIdx = inv.findIndex((q, i) => q > 0 && (itemIdx === i || Math.random() < 0.5)) !== -1
+                ? inv.findIndex((q, i) => q > 0 && (itemIdx === i || Math.random() < 0.5))
+                : inv.findIndex((q) => q > 0);
+              const lost = Math.ceil(inv[targetIdx] * (0.2 + Math.random() * 0.3));
+              inv[targetIdx] = Math.max(0, inv[targetIdx] - lost);
+              if (inv[targetIdx] === 0) avg[targetIdx] = 0;
+              return { ...prev, cash: prev.cash - actual, inventory: inv, avgCost: avg, muggingCount: prev.muggingCount + 1,
+                eventMsg: `Mugged! Lost £${actual.toLocaleString()} and ${lost} ${ITEMS[targetIdx].name}`, eventType: "bad",
+                popup: mkPopup(ev.title, ev.icon, pick([
+                  `They rolled up heavy. Took £${actual.toLocaleString()} and ${lost} ${ITEMS[targetIdx].name} out your jacket.`,
+                  `Caught you slipping. £${actual.toLocaleString()} gone and they grabbed ${lost} ${ITEMS[targetIdx].name} too.`,
+                  `Three man deep. They ran your pockets — £${actual.toLocaleString()} and ${lost} ${ITEMS[targetIdx].name}.`,
+                  `They weren't playing. Lost £${actual.toLocaleString()} cash and ${lost} ${ITEMS[targetIdx].name}.`,
+                ]), [{ label: "...", action: "dismiss" }]) };
+            }
+            return { ...prev, cash: prev.cash - actual, inventory: inv, muggingCount: prev.muggingCount + 1, eventMsg: `Mugged! Lost £${actual.toLocaleString()}`, eventType: "bad",
+              popup: mkPopup(ev.title, ev.icon, pick([
+                `They rolled up on you. Took £${actual.toLocaleString()} straight out your pocket.`,
+                `Caught lacking. £${actual.toLocaleString()} gone before you could blink.`,
+                `Two man on a moped. Ran your pockets — £${actual.toLocaleString()}.`,
+                `They weren't asking. Lost £${actual.toLocaleString()}.`,
+              ]), [{ label: "...", action: "dismiss" }]) };
+          }); return;
+      }
+      return;
+    }
+  }, []);
+
+  // --- GREEZY DEBT COLLECTOR ---
+  const checkGreezy = useCallback(() => {
+    setGs((prev) => {
+      if (prev.debt <= 0 || prev.day < prev.greezyDay || prev.popup) return prev;
+
+      if (prev.greezyStage === 0) {
+        // Stage 1: Warning message
+        const nextDay = prev.day + 8 + Math.floor(Math.random() * 5);
+        return { ...prev, greezyStage: 1, greezyDay: nextDay,
+          eventMsg: `Your boy messaged: "Yo, I seen Greezy yesterday, says you owe him £${prev.debt.toLocaleString()}. Watch yourself."`, eventType: "bad",
+          popup: mkPopup("Message Received", "📱",
+            `You got a text from one of your mandem:\n\n"Yo fam, I seen Greezy yesterday. He's asking about you. Says you owe him £${prev.debt.toLocaleString()}. I'd sort that out if I was you."`,
+            [{ label: "Say less", action: "dismiss" }]) };
+      }
+
+      if (prev.greezyStage === 1) {
+        // Stage 2: First visit — takes items + cash
+        const inv = [...prev.inventory]; const avg = [...prev.avgCost];
+        const carrying = inv.reduce((a, b) => a + b, 0);
+        if (carrying > 0) {
+          const targetIdx = inv.findIndex((q) => q > 0);
+          const lost = Math.ceil(inv[targetIdx] * (0.3 + Math.random() * 0.3));
+          inv[targetIdx] = Math.max(0, inv[targetIdx] - lost);
+          if (inv[targetIdx] === 0) avg[targetIdx] = 0;
+        }
+        const cashTaken = Math.min(Math.floor(prev.cash * 0.3), prev.cash);
+        const nextDay = prev.day + 6 + Math.floor(Math.random() * 5);
+        return { ...prev, greezyStage: 2, greezyDay: nextDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg,
+          eventMsg: carrying > 0 ? "Greezy paid you a visit. Took cash and gear. Left you with a black eye." : "Greezy paid you a visit. Took your cash and left you with a black eye.", eventType: "bad",
+          popup: mkPopup("Greezy", "👊",
+            `Greezy caught up with you.\n\n"You think you can owe me £${prev.debt.toLocaleString()} and walk around like nothing?"\n\nHe took £${cashTaken.toLocaleString()}${carrying > 0 ? " and some of your gear" : ""}. Left you with a black eye.`,
+            [{ label: "...", action: "dismiss" }]) };
+      }
+
+      if (prev.greezyStage === 2) {
+        // Stage 3: Hospital — takes more items + lose a day
+        const inv = [...prev.inventory]; const avg = [...prev.avgCost];
+        const carrying = inv.reduce((a, b) => a + b, 0);
+        if (carrying > 0) {
+          for (let i = 0; i < inv.length; i++) {
+            if (inv[i] > 0) {
+              const lost = Math.ceil(inv[i] * (0.5 + Math.random() * 0.3));
+              inv[i] = Math.max(0, inv[i] - lost);
+              if (inv[i] === 0) avg[i] = 0;
+            }
+          }
+        }
+        const cashTaken = Math.min(Math.floor(prev.cash * 0.5), prev.cash);
+        const newDay = Math.min(prev.day + 1, MAX_DAYS);
+        const nextGreezy = newDay + 6 + Math.floor(Math.random() * 5);
+        return { ...prev, greezyStage: 3, greezyDay: nextGreezy, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg,
+          eventMsg: carrying > 0 ? "Greezy's boys put you in hospital. Lost a day, cash, and most of your gear." : "Greezy's boys put you in hospital. Lost a day and your cash.", eventType: "bad",
+          popup: mkPopup("Greezy's Boys", "🏥",
+            `Greezy sent his boys this time.\n\n"This is what happens when you take the piss."\n\nThey took £${cashTaken.toLocaleString()}${carrying > 0 ? " and cleared out most of your stash" : ""}. You spent the night in A&E. Lost a day.`,
+            [{ label: "I need to pay this off", action: "dismiss" }]) };
+      }
+
+      // Stage 3+: Greezy keeps coming back with hospital visits
+      if (prev.greezyStage >= 3) {
+        const inv = [...prev.inventory]; const avg = [...prev.avgCost];
+        const carrying = inv.reduce((a, b) => a + b, 0);
+        if (carrying > 0) {
+          for (let i = 0; i < inv.length; i++) {
+            if (inv[i] > 0) {
+              const lost = Math.ceil(inv[i] * (0.5 + Math.random() * 0.3));
+              inv[i] = Math.max(0, inv[i] - lost);
+              if (inv[i] === 0) avg[i] = 0;
+            }
+          }
+        }
+        const cashTaken = Math.min(Math.floor(prev.cash * 0.5), prev.cash);
+        const newDay = Math.min(prev.day + 1, MAX_DAYS);
+        const nextGreezy = newDay + 5 + Math.floor(Math.random() * 4);
+        return { ...prev, greezyDay: nextGreezy, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg,
+          eventMsg: "Greezy came back. Hospital again. Pay your debt.", eventType: "bad",
+          popup: mkPopup("Greezy Again", "🏥",
+            `Greezy's not stopping.\n\n"I told you what would happen."\n\nThey took £${cashTaken.toLocaleString()}${carrying > 0 ? " and your gear" : ""}. Another night in A&E. Another day gone. Pay the man.`,
+            [{ label: "...", action: "dismiss" }]) };
+      }
+
+      return prev;
+    });
+  }, []);
+
+  // --- ACHIEVEMENTS (persistent across games) ---
+  const ACHIEVEMENT_LIST = [
+    { key: "nw50k", icon: "£" }, { key: "nw100k", icon: "💷" },
+    { key: "nw500k", icon: "💰" }, { key: "nw1m", icon: "🤑" },
+    { key: "debtfree", icon: "🆓" }, { key: "bank50k", icon: "🏦" },
+    { key: "moncler", icon: "🧥" }, { key: "goose", icon: "🧥" },
+    { key: "escaped", icon: "🏃" }, { key: "shifty", icon: "🐷" },
+    { key: "tip", icon: "🎯" }, { key: "megaspike", icon: "🔥" },
+  ];
+
+  const unlockAchievement = useCallback((key) => {
+    setAchievements((prev) => {
+      if (prev[key]) return prev;
+      const updated = { ...prev, [key]: true };
+      try { store.set("sw_achievements", JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+    setNewUnlocks((prev) => ({ ...prev, [key]: Date.now() }));
+  }, []);
+
+  // --- MILESTONES (per-game toasts) ---
+  const MILESTONES = [
+    { key: "nw50k", icon: "£", text: "50 bags yeh? The ends are starting to notice.", check: (s) => netWorth(s) >= 50000 },
+    { key: "nw100k", icon: "💷", text: "Six figures. Making big moves now.", check: (s) => netWorth(s) >= 100000 },
+    { key: "nw500k", icon: "💰", text: "Half a milli. You eating good tonight.", check: (s) => netWorth(s) >= 500000 },
+    { key: "nw1m", icon: "🤑", text: "Yoooo. That's an £M.", check: (s) => netWorth(s) >= 1000000 },
+    { key: "debtfree", icon: "🆓", text: "Debt free. Nobody owns you now.", check: (s) => s.debt <= 0 },
+    { key: "bank50k", icon: "🏦", text: "50 bags stashed. Smart money.", check: (s) => s.bank >= 50000 },
+    { key: "moncler", icon: "🧥", text: "That Moncleezy tho.", check: (s) => s.jacketType === "moncler" },
+    { key: "goose", icon: "🧥", text: "Dripped out. Looking like money.", check: (s) => s.jacketType === "goose" },
+  ];
+
+  // Check milestones after state changes
+  useEffect(() => {
+    if (gs.phase !== "playing" || gs.milestoneToast) return;
+    const newMilestones = {};
+    const toasts = [];
+    for (const m of MILESTONES) {
+      if (!gs.milestones[m.key] && m.check(gs)) {
+        newMilestones[m.key] = true;
+        toasts.push({ icon: m.icon, text: m.text, key: m.key });
+      }
+    }
+    if (toasts.length > 0) {
+      setGs((p) => ({
+        ...p, milestones: { ...p.milestones, ...Object.fromEntries(toasts.map((t) => [t.key, true])) },
+        milestoneToast: toasts,
+      }));
+      SFX.milestone();
+      toasts.forEach((t) => unlockAchievement(t.key));
+    }
+  }, [gs.cash, gs.bank, gs.debt, gs.jacketType, gs.phase]);
+
+  // Reset Greezy when debt is fully paid
+  useEffect(() => {
+    if (gs.phase === "playing" && gs.debt <= 0 && gs.greezyStage > 0) {
+      setGs((p) => ({ ...p, greezyStage: 0 }));
+    }
+  }, [gs.debt, gs.phase]);
+
+  // Fade event messages after popup dismissal
+  useEffect(() => {
+    if (!gs.eventFades || gs.popup || gs.eventFaded) return;
+    const timer = setTimeout(() => setGs((p) => ({ ...p, eventFaded: true })), 5000);
+    return () => clearTimeout(timer);
+  }, [gs.eventFades, gs.popup, gs.eventFaded]);
+
+  // Action-triggered milestones (set from event handlers)
+  const fireMilestone = useCallback((key, icon, text) => {
+    setGs((p) => {
+      if (p.milestones[key]) return p;
+      SFX.milestone();
+      unlockAchievement(key);
+      const existing = Array.isArray(p.milestoneToast) ? p.milestoneToast : p.milestoneToast ? [p.milestoneToast] : [];
+      return { ...p, milestones: { ...p.milestones, [key]: true }, milestoneToast: [...existing, { icon, text, key }] };
+    });
+  }, [unlockAchievement]);
+
+  const doTravel = useCallback((bIdx, lIdx) => {
+    if (bIdx === gs.borough && lIdx === gs.location) return;
+    const newDay = gs.day + 1;
+    if (newDay > MAX_DAYS) { endGame(); return; }
+    const newDebt = Math.round(gs.debt * (1 + DEBT_INTEREST));
+    const newPrices = generatePrices();
+    const newAvail = generateAvail();
+    const histEntry = { day: gs.day, borough: gs.borough, location: gs.location, prices: [...gs.prices] };
+    const dm = dayMsg(newDay);
+
+    // Apply active tip if destination matches
+    let tipMsg = null;
+    if (gs.activeTip && gs.activeTip.borough === bIdx && gs.activeTip.location === lIdx) {
+      const tip = gs.activeTip;
+      if (tip.type === "expensive") {
+        newPrices[tip.itemIdx] = Math.round(ITEMS[tip.itemIdx].basePrice * (5 + Math.random() * 6));
+        tipMsg = `The tip was right! ${ITEMS[tip.itemIdx].name} prices are through the roof here.`;
+      } else {
+        newPrices[tip.itemIdx] = Math.max(1, Math.round(ITEMS[tip.itemIdx].basePrice * (0.05 + Math.random() * 0.15)));
+        tipMsg = `The tip paid off! ${ITEMS[tip.itemIdx].name} is dirt cheap here.`;
+      }
+    }
+
+    // Apply pending news if destination matches
+    let newsMsg = null;
+    if (gs.pendingNews && gs.pendingNews.borough === bIdx && gs.pendingNews.location === lIdx) {
+      const news = gs.pendingNews;
+      if (news.type === "mega") {
+        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (8 + Math.random() * 12));
+        newsMsg = `🔥 The news was right! ${ITEMS[news.itemIdx].name} is going for insane prices here!`;
+      } else if (news.type === "spike") {
+        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (2.5 + Math.random() * 3));
+        newsMsg = `📰 Just like the paper said — ${ITEMS[news.itemIdx].name} prices are well up here.`;
+      } else {
+        newPrices[news.itemIdx] = Math.max(1, Math.round(ITEMS[news.itemIdx].basePrice * 0.1));
+        newsMsg = `📰 The news was spot on — ${ITEMS[news.itemIdx].name} has crashed here.`;
+      }
+    }
+
+    const arrivalMsg = tipMsg || newsMsg;
+    const isMegaArrival = newsMsg && newsMsg.includes("🔥");
+
+    // Ensure tipped/news drugs are available at destination
+    if (gs.activeTip && gs.activeTip.borough === bIdx && gs.activeTip.location === lIdx) newAvail[gs.activeTip.itemIdx] = true;
+    if (gs.pendingNews && gs.pendingNews.borough === bIdx && gs.pendingNews.location === lIdx) newAvail[gs.pendingNews.itemIdx] = true;
+
+    setGs((p) => ({
+      ...p, day: newDay, borough: bIdx, location: lIdx, prevPrices: p.prices, prices: newPrices, drugAvail: newAvail, debt: newDebt,
+      priceHistory: [...p.priceHistory.slice(-5), histEntry],
+      activeTip: null,
+      pendingNews: null,
+      tradeMsg: null,
+      milestoneToast: null,
+      shiftyCooldown: Math.max(0, p.shiftyCooldown - 1),
+      jamalCooldown: Math.max(0, p.jamalCooldown - 1),
+      popup: null, travelPopup: false, travelBorough: null, selectedMarket: null, selectedStash: null,
+      eventMsg: arrivalMsg || dm || `Traveled to ${BOROUGHS[bIdx].locations[lIdx]}, ${BOROUGHS[bIdx].name}.${newDebt > p.debt ? ` Debt +£${(newDebt - p.debt).toLocaleString()}` : ""}`,
+      eventType: arrivalMsg ? "good" : dm ? "bad" : "neutral",
+      eventFades: false, eventFaded: false,
+    }));
+    SFX.travel();
+    if (tipMsg) fireMilestone("tip", "🎯", "The streets talk. You listened.");
+    if (isMegaArrival) fireMilestone("megaspike", "🔥", "Right place, right time.");
+    setTimeout(triggerEvent, 150);
+    setTimeout(checkGreezy, 400);
+  }, [gs.day, gs.borough, gs.location, gs.debt, gs.prices, gs.activeTip, gs.pendingNews, triggerEvent, checkGreezy]);
+
+  const doBuy = useCallback((idx, amt) => {
+    const cost = amt * gs.prices[idx];
+    const space = gs.capacity - totalInventory(gs.inventory);
+    if (cost > gs.cash) { setGs((p) => ({ ...p, tradeMsg: `Can't afford ${amt} ${ITEMS[idx].name}! Need £${cost.toLocaleString()}`, qtyPopup: null })); return; }
+    if (amt > space) { setGs((p) => ({ ...p, tradeMsg: `No jacket space! Room for ${space} more.`, qtyPopup: null })); return; }
+    setGs((p) => {
+      const inv = [...p.inventory]; const avg = [...p.avgCost];
+      const oldTotal = avg[idx] * inv[idx]; inv[idx] += amt;
+      avg[idx] = Math.round((oldTotal + cost) / inv[idx]);
+      return { ...p, cash: p.cash - cost, inventory: inv, avgCost: avg, qtyPopup: null, reputation: p.reputation + 1, tradeCount: p.tradeCount + 1,
+        tradeMsg: `Bought ${amt} ${ITEMS[idx].name} for £${cost.toLocaleString()}` };
+    });
+    SFX.buy();
+  }, [gs.prices, gs.cash, gs.capacity, gs.inventory]);
+
+  const doSell = useCallback((idx, amt) => {
+    if (amt > gs.inventory[idx]) { setGs((p) => ({ ...p, tradeMsg: `You only have ${gs.inventory[idx]} ${ITEMS[idx].name}!`, qtyPopup: null })); return; }
+    const revenue = amt * gs.prices[idx];
+    const pl = revenue - (amt * gs.avgCost[idx]);
+    setGs((p) => {
+      const inv = [...p.inventory]; inv[idx] -= amt;
+      const avg = [...p.avgCost]; if (inv[idx] === 0) avg[idx] = 0;
+      return { ...p, cash: p.cash + revenue, inventory: inv, avgCost: avg, qtyPopup: null, reputation: p.reputation + 1, tradeCount: p.tradeCount + 1,
+        tradeMsg: `Sold ${amt} ${ITEMS[idx].name} for £${revenue.toLocaleString()} (${pl >= 0 ? "+" : ""}£${pl.toLocaleString()} ${pl >= 0 ? "profit" : "loss"})` };
+    });
+    SFX.sell();
+  }, [gs.prices, gs.inventory, gs.avgCost]);
+
+  const endGame = useCallback(() => {
+    const finalWorth = netWorth(gs);
+    const isProfit = finalWorth > 0;
+
+    // Update career stats
+    setCareer((prev) => {
+      const updated = {
+        games: prev.games + 1,
+        totalEarnings: prev.totalEarnings + Math.max(0, finalWorth),
+        bestScore: Math.max(prev.bestScore, finalWorth),
+        bestStreak: isProfit ? Math.max(prev.bestStreak, prev.currentStreak + 1) : prev.bestStreak,
+        currentStreak: isProfit ? prev.currentStreak + 1 : 0,
+        totalPolice: prev.totalPolice + gs.policeCount,
+        totalTrades: prev.totalTrades + gs.tradeCount,
+        totalMuggings: (prev.totalMuggings || 0) + gs.muggingCount,
+      };
+      try { store.set("sw_career_stats", JSON.stringify(updated)); } catch (e) {}
+      return updated;
+    });
+
+    // Submit best score to Supabase leaderboard
+    upsertBestScore(gs.playerName || "Anon", finalWorth);
+
+    setGs((prev) => ({ ...prev, phase: "gameover" }));
+
+    // Refresh leaderboard from Supabase
+    (async () => {
+      try {
+        const lb = await loadLeaderboard();
+        if (lb.length > 0) setLeaderboard(lb);
+      } catch (e) {}
+    })();
+  }, [gs]);
+
+  const showIntro = useCallback((name) => {
+    const clean = sanitiseName(name).trim() || "Anon";
+    if (containsProfanity(clean)) {
+      setNameError("That name ain't flying round here. Try again.");
+      return;
+    }
+    setNameError("");
+    setGs((p) => ({ ...p, playerName: clean, popup: { title: "Ready?", icon: "⚠️",
+      message: "The streets don't wait for anyone. You've got 30 days. Make it count.",
+      buttons: [
+        { label: "I ain't ready for all that", primary: false, action: () => setGs((prev) => ({ ...prev, popup: null })) },
+        { label: "Come on", primary: true, action: () => { const s = getInitialState(); setGs({ ...s, phase: "playing", playerName: clean, greezyDay: 3 + Math.floor(Math.random() * 6) }); } },
+      ]} }));
+  }, []);
+
+  // ——— THEME ———
+  const T = {
+    bg: "#2d2d2d", surface: "#3c3c3c", surfaceAlt: "#4a4a4a", border: "#555555",
+    accent: "#f28a1f", accentDim: "rgba(242,138,31,0.12)", green: "#8bab1e", red: "#d44",
+    text: "#e8e8e8", textDim: "#b0b0b0", textMuted: "#888888", blue: "#5ba4cf", white: "#ffffff",
+    eventGood: "rgba(139,171,30,0.12)", eventBad: "rgba(221,68,68,0.12)", eventNeutral: "transparent",
+  };
+  const font = `'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace`;
+  const sansFont = `'DM Sans', '-apple-system', 'Segoe UI', sans-serif`;
+  const panelStyle = { background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, boxShadow: "0 1px 3px rgba(0,0,0,0.3)" };
+  const btnStyle = (primary) => ({
+    fontFamily: sansFont, fontSize: "12px", fontWeight: 600, padding: "6px 14px",
+    borderRadius: 6, cursor: "pointer", border: primary ? "none" : `1px solid ${T.border}`,
+    background: primary ? T.accent : "transparent", color: primary ? "#fff" : T.text, transition: "all 0.12s",
+  });
+  const inputSt = { fontFamily: font, fontSize: "13px", padding: "6px 10px", background: T.bg,
+    border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, outline: "none", width: "100%", boxSizing: "border-box" };
+
+  const Overlay = ({ children, onClose }) => (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(3px)", padding: "0 12px" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", maxWidth: 500 }}>{children}</div>
+    </div>
+  );
+  const ModalBox = ({ title, icon, children, width = 400 }) => (
+    <div style={{ background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 12, maxWidth: width, width: "92%", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+        {icon && <span style={{ fontSize: 20 }}>{icon}</span>}
+        <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.accent }}>{title}</span>
+      </div>
+      <div style={{ padding: "16px", color: T.text }}>{children}</div>
+    </div>
+  );
+
+  const NumPad = ({ value, onChange, onMax, maxLabel }) => {
+    const padBtn = (label, action) => (
+      <button key={label} onClick={action} style={{
+        fontFamily: font, fontSize: isMobile ? 16 : 18, fontWeight: 700, padding: isMobile ? "10px 0" : "12px 0",
+        background: T.bg, color: T.text,
+        border: `1px solid ${T.border}`, borderRadius: 8, cursor: "pointer",
+        transition: "all 0.1s", WebkitTapHighlightColor: "transparent",
+      }}>{label}</button>
+    );
+    return (
+      <div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+          <div style={{ flex: 1, fontFamily: font, fontSize: 18, fontWeight: 700, color: value ? T.accent : T.textMuted, background: T.bg,
+            border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 14px", minHeight: 40, display: "flex", alignItems: "center" }}>
+            {value || "0"}
+          </div>
+          {onMax && <button style={{ ...btnStyle(false), padding: "8px 10px", fontSize: 11, whiteSpace: "nowrap" }} onClick={onMax}>{maxLabel}</button>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: isMobile ? 4 : 6, marginBottom: 8 }}>
+          {[1,2,3,4,5,6,7,8,9].map((n) => padBtn(n, () => onChange(value + String(n))))}
+          {padBtn("⌫", () => onChange(value.slice(0, -1)))}
+          {padBtn(0, () => { if (value) onChange(value + "0"); })}
+          {padBtn("C", () => onChange(""))}
+        </div>
+      </div>
+    );
+  };
+
+  const EventPopup = () => {
+    if (!gs.popup) return null;
+    return (
+      <Overlay onClose={dismissPopup}>
+        <ModalBox title={gs.popup.title} icon={gs.popup.icon}>
+          <div style={{ fontFamily: sansFont, fontSize: 13, lineHeight: 1.7, color: T.text, marginBottom: 16, whiteSpace: "pre-line" }}>{gs.popup.message}</div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            {gs.popup.buttons.map((b, i) => (
+              <button key={i} style={btnStyle(b.primary !== undefined ? b.primary : i === 0)} onClick={() => typeof b.action === "function" ? b.action() : dismissPopup()}>{b.label}</button>
+            ))}
+          </div>
+        </ModalBox>
+      </Overlay>
+    );
+  };
+
+  const TravelPopup = () => {
+    if (!gs.travelPopup) return null;
+    const selB = gs.travelBorough;
+    return (
+      <Overlay onClose={() => setGs((p) => ({ ...p, travelPopup: false, travelBorough: null }))}>
+        <ModalBox title="Travel" icon="🚇" width={440}>
+          {selB === null ? (
+            <>
+              <div style={{ fontFamily: sansFont, fontSize: 13, color: T.textDim, marginBottom: 12 }}>Select a borough:</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {BOROUGHS.map((b, i) => (
+                  <button key={i} style={{ ...btnStyle(false), padding: "10px 12px", textAlign: "left", display: "flex", flexDirection: "column", gap: 2 }}
+                    onClick={() => setGs((p) => ({ ...p, travelBorough: i }))}>
+                    <span style={{ fontWeight: 700, color: T.text }}>{b.name}</span>
+                    <span style={{ fontSize: 10, color: T.textDim, fontWeight: 400 }}>{b.locations.length} locations</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <button style={{ ...btnStyle(false), padding: "4px 10px", fontSize: 11 }} onClick={() => setGs((p) => ({ ...p, travelBorough: null }))}>← Back</button>
+                <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.text }}>{BOROUGHS[selB].name}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {BOROUGHS[selB].locations.map((loc, i) => {
+                  const isCurrent = selB === gs.borough && i === gs.location;
+                  return (
+                    <button key={i} disabled={isCurrent} style={{ ...btnStyle(false), padding: "10px 12px", opacity: isCurrent ? 0.35 : 1, cursor: isCurrent ? "default" : "pointer" }}
+                      onClick={() => { if (!isCurrent) doTravel(selB, i); }}>
+                      <span style={{ color: isCurrent ? T.blue : T.text }}>{isCurrent ? "📍 " : ""}{loc}</span>
+                    </button>);
+                })}
+              </div>
+            </>
+          )}
+          <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+            <button style={btnStyle(false)} onClick={() => setGs((p) => ({ ...p, travelPopup: false, travelBorough: null }))}>Cancel</button>
+          </div>
+        </ModalBox>
+      </Overlay>
+    );
+  };
+
+  // ——— TITLE ———
+  if (gs.phase === "title") {
+    return (
+      <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <EventPopup />
+        <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px" }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 11, letterSpacing: 5, color: T.textMuted, textTransform: "uppercase", marginBottom: 8 }}>London</div>
+            <h1 style={{ fontFamily: font, fontSize: 36, fontWeight: 800, color: T.accent, margin: "0 0 6px", letterSpacing: -1 }}>STREET WARS</h1>
+            <div style={{ fontSize: 13, color: T.textDim }}>30 days. 6 boroughs. 36 locations.</div>
+          </div>
+          <div style={{ marginBottom: 20, padding: "14px 16px", background: T.surfaceAlt, borderRadius: 8, border: `1px solid ${T.border}` }}>
+            <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.accent, marginBottom: 10 }}>This ain't no game. This is real.</div>
+            <div style={{ fontFamily: sansFont, fontSize: 12, color: T.textDim }}>
+              {["30 days. Make as much P's as possible.", "Every travel costs you a day. Move smart.", "Buy cheap. Sell high. Simple.", "Watch the news. Listen to the streets.", "Feds and roadman are everywhere.", "Pay up your debt — or things will happen."].map((r, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0", alignItems: "baseline" }}>
+                  <span style={{ color: T.accent, fontSize: 8, lineHeight: "18px" }}>■</span><span>{r}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: T.accent, fontWeight: 700, display: "block", marginBottom: 6 }}>What's your name fam?</label>
+            <input style={{ ...inputSt, borderColor: nameError ? T.red : T.border }} value={gs.playerName}
+              onChange={(e) => { setGs((p) => ({ ...p, playerName: sanitiseName(e.target.value) })); setNameError(""); }}
+              placeholder="Your street name..." onKeyDown={(e) => e.key === "Enter" && gs.playerName.trim() && showIntro(gs.playerName.trim())} maxLength={20} />
+            {nameError && <div style={{ fontFamily: font, fontSize: 11, color: T.red, marginTop: 4 }}>{nameError}</div>}
+          </div>
+          <button style={{ ...btnStyle(true), width: "100%", padding: "10px", fontSize: 14 }} onClick={() => showIntro(gs.playerName.trim() || "Anon")}>Let's Go</button>
+          {leaderboard.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Top 10 — How others are moving</div>
+              {leaderboard.slice(0, 10).map((s, i) => (
+                <div key={i} style={{ fontFamily: font, fontSize: 12, display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${T.border}` }}>
+                  <span><span style={{ color: T.accent, marginRight: 8 }}>#{i + 1}</span><span style={{ color: T.text }}>{s.name}</span></span>
+                  <span style={{ color: s.score >= 0 ? T.green : T.red }}>£{s.score.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ textAlign: "center", marginTop: 20, fontSize: 11, color: T.textMuted, letterSpacing: 1 }}>by <span style={{ color: T.accent }}>sneaky_no_face</span></div>
+        </div>
+      </div>
+    );
+  }
+
+  // ——— GAME OVER ———
+  if (gs.phase === "gameover") {
+    const w = netWorth(gs);
+    const rank = leaderboard.findIndex((s) => s.name === gs.playerName) + 1;
+    return (
+      <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px", textAlign: "center" }}>
+          <div style={{ fontSize: 11, letterSpacing: 3, color: T.textMuted, textTransform: "uppercase", marginBottom: 8 }}>30 Days Are Up</div>
+          <div style={{ fontFamily: sansFont, fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>{gs.playerName}'s Final Score</div>
+          <div style={{ fontFamily: font, fontSize: 36, fontWeight: 800, color: w >= 0 ? T.green : T.red, marginBottom: 8 }}>£{w.toLocaleString()}</div>
+          <div style={{ fontSize: 13, color: T.textDim, marginBottom: 24 }}>
+            {w >= 100000 ? "Untouchable. You own these streets." : w >= 50000 ? "Legendary. The streets speak your name." : w >= 20000 ? "Solid run. You made a name for yourself." : w >= 0 ? "You survived. Barely." : "You owe more than you made. Not a good look."}
+          </div>
+          <div style={{ ...panelStyle, padding: 12, marginBottom: 20, textAlign: "left" }}>
+            <div style={{ fontFamily: font, fontSize: 13, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+              <span style={{ color: T.textDim }}>Bank: <span style={{ color: T.blue }}>£{gs.bank.toLocaleString()}</span></span>
+              <span style={{ color: T.textDim }}>Debt: <span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></span>
+              <span style={{ color: T.textDim }}>Rank: <span style={{ color: T.accent }}>#{rank || "–"}</span></span>
+            </div>
+            <div style={{ borderTop: `1px solid ${T.border}`, marginTop: 8, paddingTop: 8, fontFamily: font, fontSize: 11, color: T.textDim }}>
+              Trades: {gs.tradeCount} · Police: {gs.policeCount} · Mugged: {gs.muggingCount} · Dumped: {gs.dumpCount}
+            </div>
+            <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>
+              Jacket: {gs.jacketType === "goose" ? "🧥 Canada Goose" : gs.jacketType === "moncler" ? "🧥 Moncler" : "Basic"} · {gs.shiftyEverBought ? "🐷 Shifty" : ""}{gs.jamalActive || gs.jamalCooldown > 0 ? " 💪 Jamal" : ""}{!gs.shiftyEverBought && !gs.jamalActive && gs.jamalCooldown <= 0 ? "No protection" : ""}
+            </div>
+          </div>
+          {ACHIEVEMENT_LIST.filter((a) => achievements[a.key]).length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Achievements Unlocked</div>
+              <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
+                {ACHIEVEMENT_LIST.filter((a) => achievements[a.key]).map((a) => (
+                  <div key={a.key} style={{ width: 36, height: 36, borderRadius: 6,
+                    background: T.bg, border: `1px solid ${T.border}`,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 18 }}>
+                    {a.icon}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {leaderboard.length > 0 && (
+            <div style={{ marginBottom: 20, textAlign: "left" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Top 10 — How others are moving</div>
+              {leaderboard.slice(0, 10).map((s, i) => (
+                <div key={i} style={{ fontFamily: font, fontSize: 12, display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: `1px solid ${T.border}`,
+                  background: s.name === gs.playerName ? T.accentDim : "transparent", borderRadius: 4, paddingLeft: 4, paddingRight: 4 }}>
+                  <span><span style={{ color: T.accent, marginRight: 8 }}>#{i + 1}</span><span style={{ color: T.text }}>{s.name}</span></span>
+                  <span style={{ color: s.score >= 0 ? T.green : T.red }}>£{s.score.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button style={{ ...btnStyle(true), width: "100%", padding: 10 }} onClick={() => { const s = getInitialState(); setGs({ ...s, phase: "title" }); }}>Play Again</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ——— MAIN GAME ———
+  const space = gs.capacity - totalInventory(gs.inventory);
+  const stashItems = gs.inventory.map((qty, i) => ({ idx: i, qty, name: ITEMS[i].name, avgPrice: gs.avgCost[i] })).filter((x) => x.qty > 0);
+  const eventBg = gs.eventType === "good" ? T.eventGood : gs.eventType === "bad" ? T.eventBad : T.eventNeutral;
+  const eventBorder = gs.eventType === "good" ? "1px solid rgba(139,171,30,0.3)" : gs.eventType === "bad" ? "1px solid rgba(221,68,68,0.3)" : `1px solid ${T.border}`;
+
+  return (
+    <div onClick={() => { if (gs.milestoneToast) setGs((p) => ({ ...p, milestoneToast: null })); }} style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "12px 4px 8px" : "32px 8px 16px" }}>
+      <EventPopup />
+      {gs.qtyPopup && (() => {
+        const q = gs.qtyPopup; const item = ITEMS[q.itemIdx]; const isBuy = q.type === "buy";
+        const price = gs.prices[q.itemIdx]; const avgCost = gs.avgCost[q.itemIdx];
+        const maxBuy = Math.min(Math.floor(gs.cash / price), gs.capacity - totalInventory(gs.inventory));
+        const maxSell = gs.inventory[q.itemIdx]; const maxQty = isBuy ? maxBuy : maxSell;
+        const amt = parseInt(qtyInput) || 0; const total = amt * price;
+        const pl = !isBuy && amt > 0 ? (total - amt * avgCost) : 0;
+        return (
+          <div onClick={() => { setGs((p) => ({ ...p, qtyPopup: null })); setQtyInput(""); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(3px)", padding: "0 12px" }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 12, maxWidth: 360, width: "92%", maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+              <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 20 }}>{isBuy ? "💰" : "💸"}</span>
+                <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.accent }}>{isBuy ? "Buy" : "Sell"} {item.name}</span>
+              </div>
+              <div style={{ padding: 16 }}>
+                <div style={{ fontFamily: font, fontSize: 13, color: T.textDim, marginBottom: 6 }}>
+                  Street price: <span style={{ color: T.accent }}>£{price.toLocaleString()}</span>
+                </div>
+                {!isBuy && avgCost > 0 && (
+                  <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 6 }}>
+                    You paid avg: <span style={{ color: T.text }}>£{avgCost.toLocaleString()}</span> · 
+                    {price > avgCost ? <span style={{ color: T.green }}> Profit opportunity ▲</span> : <span style={{ color: T.red }}> Selling at a loss ▼</span>}
+                  </div>
+                )}
+                {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>You have: <span style={{ color: T.text }}>{maxSell}</span></div>}
+                <NumPad value={qtyInput} onChange={(v) => setQtyInput(v)}
+                  onMax={() => setQtyInput(String(maxQty))} maxLabel={`Max (${maxQty})`} />
+                {amt > 0 && (
+                  <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 12 }}>
+                    Total: <span style={{ color: isBuy ? T.red : T.green }}>£{total.toLocaleString()}</span>
+                    {!isBuy && avgCost > 0 && <span style={{ marginLeft: 8, color: pl >= 0 ? T.green : T.red }}>({pl >= 0 ? "+" : ""}£{pl.toLocaleString()})</span>}
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <button style={btnStyle(false)} onClick={() => { setGs((p) => ({ ...p, qtyPopup: null })); setQtyInput(""); }}>Cancel</button>
+                  <button style={btnStyle(true)} onClick={() => { if (amt > 0) { isBuy ? doBuy(q.itemIdx, amt) : doSell(q.itemIdx, amt); setQtyInput(""); } }}>{isBuy ? "Buy" : "Sell"}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+      <TravelPopup />
+
+      {/* FINANCE POPUP */}
+      {gs.financePopup && (() => {
+        const tab = gs.finTab;
+        const depositMax = Math.max(0, gs.cash - 1000);
+        const withdrawMax = gs.bank;
+        const debtMax = Math.min(gs.cash, gs.debt);
+        return (
+        <div onClick={() => setGs((p) => ({ ...p, financePopup: false, finAmt: "" }))} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(3px)", padding: "0 12px" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 12, maxWidth: 340, width: "92%", maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 20 }}>🏦</span>
+              <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.accent }}>Finances</span>
+            </div>
+            <div style={{ padding: 16 }}>
+              <div style={{ fontFamily: font, fontSize: 12, marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+                <span style={{ color: T.textDim }}>Bank: <span style={{ color: T.blue }}>£{gs.bank.toLocaleString()}</span></span>
+                {gs.debt > 0 && <span style={{ color: T.textDim }}>Debt: <span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
+              </div>
+
+              {/* TABS */}
+              <div style={{ display: "flex", gap: 4, marginBottom: 14 }}>
+                {["deposit", "withdraw", ...(gs.debt > 0 ? ["debt"] : [])].map((t) => (
+                  <button key={t} style={{ ...btnStyle(tab === t), flex: 1, fontSize: 11, padding: "6px 4px", textTransform: "capitalize" }}
+                    onClick={() => setGs((p) => ({ ...p, finTab: t, finAmt: "" }))}>{t === "debt" ? "Pay Debt" : t}</button>
+                ))}
+              </div>
+
+              {/* NUMPAD */}
+              {(() => {
+                const max = tab === "deposit" ? depositMax : tab === "withdraw" ? withdrawMax : debtMax;
+                const maxStr = `£${max.toLocaleString()}`;
+                return <NumPad value={gs.finAmt} onChange={(v) => setGs((p) => ({ ...p, finAmt: v }))}
+                  onMax={() => setGs((p) => ({ ...p, finAmt: String(max) }))} maxLabel={`Max (${maxStr})`} />;
+              })()}
+
+              {tab === "deposit" && gs.cash < 1000 && (
+                <div style={{ fontFamily: font, fontSize: 11, color: T.red, marginBottom: 10 }}>Need at least £1,000 cash to deposit.</div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button style={btnStyle(false)} onClick={() => setGs((p) => ({ ...p, financePopup: false, finAmt: "" }))}>Close</button>
+                <button style={btnStyle(true)} onClick={() => {
+                  const a = parseInt(gs.finAmt); if (!a || a <= 0) return;
+                  if (tab === "deposit") { if (a > depositMax) return; setGs((p) => ({ ...p, cash: p.cash - a, bank: p.bank + a, finAmt: "", eventMsg: `Deposited £${a.toLocaleString()}`, eventType: "neutral" })); }
+                  if (tab === "withdraw") { if (a > withdrawMax) return; setGs((p) => ({ ...p, cash: p.cash + a, bank: p.bank - a, finAmt: "", eventMsg: `Withdrew £${a.toLocaleString()}`, eventType: "neutral" })); }
+                  if (tab === "debt") { if (a > debtMax) return; setGs((p) => ({ ...p, cash: p.cash - a, debt: p.debt - a, finAmt: "", eventMsg: `Paid off £${a.toLocaleString()}`, eventType: "good" })); }
+                }}>{tab === "deposit" ? "Deposit" : tab === "withdraw" ? "Withdraw" : "Pay"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* SHOP POPUP */}
+      {gs.shopPopup && (
+        <Overlay onClose={() => setGs((p) => ({ ...p, shopPopup: false }))}>
+          <ModalBox title="Shop" icon="🛒" width={420}>
+            <div style={{ fontFamily: sansFont, fontSize: 12, color: T.textDim, marginBottom: 14 }}>
+              Upgrade your gear. Better jackets hold more — but make you a bigger target for stick-up kids.
+            </div>
+
+            {/* JACKETS */}
+            <div style={{ fontFamily: sansFont, fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Jackets</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+              {/* Moncler */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: gs.jacketType === "moncler" || gs.jacketType === "goose" ? T.surfaceAlt : T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                <div>
+                  <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>🧥 Moncler</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>+25 jacket space · ⚠️ +5% mugging risk</div>
+                </div>
+                {gs.jacketType === "moncler" ? (
+                  <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Wearing</span>
+                ) : gs.jacketType === "goose" ? (
+                  <span style={{ fontFamily: font, fontSize: 11, color: T.textMuted }}>Upgraded</span>
+                ) : (
+                  <button style={btnStyle(gs.cash >= 20000)} onClick={() => {
+                    if (gs.cash >= 20000) {
+                      setGs((p) => ({ ...p, cash: p.cash - 20000, capacity: p.capacity + 25, jacketType: "moncler",
+                        eventMsg: "Copped a Moncler! +25 jacket space. Looking fresh — but watch your back.", eventType: "good" }));
+                    }
+                  }}>{gs.cash >= 20000 ? "£20,000" : "Can't afford"}</button>
+                )}
+              </div>
+
+              {/* Canada Goose */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: gs.jacketType === "goose" ? T.surfaceAlt : T.bg, borderRadius: 8, border: `1px solid ${T.border}` }}>
+                <div>
+                  <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>🧥 Canada Goose</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>+40 jacket space · ⚠️ +8% mugging risk</div>
+                </div>
+                {gs.jacketType === "goose" ? (
+                  <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Wearing</span>
+                ) : (
+                  <button style={btnStyle(gs.cash >= 40000)} onClick={() => {
+                    if (gs.cash >= 40000) {
+                      const extraSpace = gs.jacketType === "moncler" ? 15 : 40;
+                      setGs((p) => ({ ...p, cash: p.cash - 40000, capacity: p.capacity + extraSpace, jacketType: "goose",
+                        eventMsg: `Copped a Canada Goose! +${extraSpace} jacket space. You're a walking target now.`, eventType: "good" }));
+                    }
+                  }}>{gs.cash >= 40000 ? "£40,000" : "Can't afford"}</button>
+                )}
+              </div>
+            </div>
+
+            {/* PROTECTION */}
+            <div style={{ fontFamily: sansFont, fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Protection</div>
+
+            {/* PC SHIFTY */}
+            {(() => {
+              const nw = netWorth(gs);
+              const tierMinPrices = [5000, 15000, 30000];
+              const tierPcts = [0.05, 0.10, 0.15];
+              const nextTier = gs.shiftyTier + 1;
+              const hasUses = gs.shiftyUses > 0;
+              const maxedOut = gs.shiftyTier >= 3 && gs.shiftyUses <= 0;
+              const canBuyNext = !hasUses && gs.shiftyCooldown <= 0 && nextTier <= 3;
+              const nextPrice = canBuyNext ? Math.max(tierMinPrices[nextTier - 1], Math.floor(Math.abs(nw) * tierPcts[nextTier - 1])) : 0;
+              const blocked = gs.jamalEverHired;
+
+              return (
+                <div style={{ padding: "12px 14px", background: hasUses ? T.surfaceAlt : T.bg, borderRadius: 8, border: `1px solid ${T.border}`, marginBottom: 10 }}>
+                  <div style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>🐷 PC Shifty</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: T.textDim, marginBottom: 8 }}>Drop his name when stopped by feds. They let you walk.</div>
+                  {gs.shiftyEverBought && <div style={{ fontFamily: font, fontSize: 11, color: T.accent, marginBottom: 8 }}>⚠️ Mugging risk increased — word is you work with feds</div>}
+                  {blocked ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted }}>Shifty ain't working with Jamal.</div>
+                  ) : hasUses && gs.shiftyCooldown > 0 ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted }}>Shifty's not about. Back in {gs.shiftyCooldown} travels.</div>
+                  ) : hasUses ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.green }}>{gs.shiftyUses} uses remaining</div>
+                  ) : maxedOut ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.red }}>Gone underground. He's done.</div>
+                  ) : gs.shiftyCooldown > 0 ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted }}>Shifty's not about. Back in {gs.shiftyCooldown} travels.</div>
+                  ) : canBuyNext ? (
+                    <button style={btnStyle(gs.cash >= nextPrice)} onClick={() => {
+                      if (gs.cash >= nextPrice) {
+                        const isFirst = !gs.shiftyEverBought;
+                        setGs((p) => ({ ...p, cash: p.cash - nextPrice, shiftyTier: nextTier, shiftyUses: 2, shiftyEverBought: true,
+                          eventMsg: isFirst ? "Shifty's on the payroll. But word travels fast — watch your back." :
+                            nextTier === 2 ? "Shifty wants more this time. He'll cover you again." :
+                            "Shifty's getting greedy. Last time he's doing this.",
+                          eventType: "good" }));
+                        if (isFirst) {
+                          setTimeout(() => setGs((p) => ({ ...p,
+                            popup: mkPopup("Word on the Street", "🗣️",
+                              "Word on the street is you're working with the feds.\n\nRoadman and stick-up kids are gonna be looking at you different now. Watch your back.",
+                              [{ label: "It is what it is", action: "dismiss" }]) })), 200);
+                        }
+                      }
+                    }}>{gs.cash >= nextPrice ? `£${nextPrice.toLocaleString()}` : "Can't afford"}</button>
+                  ) : null}
+                </div>
+              );
+            })()}
+
+            {/* JAMAL */}
+            {(() => {
+              const jamalPrice = Math.max(5000, Math.floor(gs.cash * 0.15));
+              const blocked = gs.shiftyEverBought;
+              const onCooldown = gs.jamalCooldown > 0;
+              const canHire = !gs.jamalActive && !onCooldown && !blocked;
+
+              return (
+                <div style={{ padding: "12px 14px", background: gs.jamalActive ? T.surfaceAlt : T.bg, borderRadius: 8, border: `1px solid ${T.border}`, marginBottom: 16 }}>
+                  <div style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 4 }}>💪 Jamal — Security</div>
+                  <div style={{ fontFamily: font, fontSize: 11, color: T.textDim, marginBottom: 8 }}>Roll with Jamal. Muggers see him and think twice.</div>
+                  {gs.jamalActive && <div style={{ fontFamily: font, fontSize: 11, color: T.accent, marginBottom: 8 }}>⚠️ Police encounters increased — feds are looking for Jamal</div>}
+                  {blocked ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted }}>Jamal don't roll with snitches.</div>
+                  ) : gs.jamalActive ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.green }}>Jamal's with you</div>
+                  ) : onCooldown ? (
+                    <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted }}>Jamal's ghost. Back in {gs.jamalCooldown} travels.</div>
+                  ) : canHire ? (
+                    <button style={btnStyle(gs.cash >= jamalPrice)} onClick={() => {
+                      if (gs.cash >= jamalPrice) {
+                        setGs((p) => ({ ...p, cash: p.cash - jamalPrice, jamalActive: true, jamalBlocks: 2, jamalEverHired: true,
+                          eventMsg: `Jamal's rolling with you now. £${jamalPrice.toLocaleString()} well spent.`, eventType: "good" }));
+                      }
+                    }}>{gs.cash >= jamalPrice ? `£${jamalPrice.toLocaleString()}` : "Can't afford"}</button>
+                  ) : null}
+                </div>
+              );
+            })()}
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button style={btnStyle(false)} onClick={() => setGs((p) => ({ ...p, shopPopup: false }))}>Close</button>
+            </div>
+          </ModalBox>
+        </Overlay>
+      )}
+
+      {/* PRICE HISTORY POPUP */}
+      {gs.priceHistoryPopup && (
+        <Overlay onClose={() => setGs((p) => ({ ...p, priceHistoryPopup: false }))}>
+          <ModalBox title="Price History" icon="📊" width={480}>
+            {gs.priceHistory.length === 0 ? (
+              <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted, textAlign: "center", padding: 16 }}>No history yet. Travel to start tracking.</div>
+            ) : (
+              <div style={{ maxHeight: 300, overflowY: "auto", paddingRight: 8 }}>
+                {[...gs.priceHistory].reverse().map((h, hi) => (
+                  <div key={hi} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: hi < gs.priceHistory.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                    <div style={{ fontFamily: sansFont, fontSize: 12, fontWeight: 700, color: T.accent, marginBottom: 4 }}>
+                      Day {h.day} — {BOROUGHS[h.borough].locations[h.location]}, {BOROUGHS[h.borough].name}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 16px", fontFamily: font, fontSize: 11 }}>
+                      {ITEMS.map((item, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span style={{ color: T.textDim }}>{item.name}</span>
+                          <span style={{ color: T.accent }}>£{h.prices[i].toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+              <button style={btnStyle(false)} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: false }))}>Close</button>
+            </div>
+          </ModalBox>
+        </Overlay>
+      )}
+
+      <div style={{ maxWidth: 768, width: "100%", margin: "auto", padding: isMobile ? "0 4px" : 0, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* STATS PANEL — sticky on mobile, pulled out of flex row */}
+        {isMobile && (
+          <div style={{ ...panelStyle, padding: "10px 16px", position: "sticky", top: 0, zIndex: 100 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day: {gs.day}/{MAX_DAYS}</span>
+              <div style={{ fontFamily: font, fontSize: 12, display: "flex", gap: 12 }}>
+                <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+                <span style={{ color: T.textDim }}>Bank: <span style={{ color: T.blue }}>£{gs.bank.toLocaleString()}</span></span>
+                <span style={{ color: T.textDim }}>Debt: <span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></span>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {gs.shiftyUses > 0 && gs.shiftyCooldown <= 0 && <span style={{ fontSize: 14 }}>🐷</span>}
+                {gs.shiftyUses > 0 && gs.shiftyCooldown > 0 && <span style={{ fontSize: 14, opacity: 0.4 }}>🐷</span>}
+                {gs.jamalActive && <span style={{ fontSize: 14 }}>💪</span>}
+                <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs((p) => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
+          {/* STATS PANEL — desktop only (in flex row) */}
+          {!isMobile && (
+          <div style={{ ...panelStyle, width: 220, padding: "12px 16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day: {gs.day}/{MAX_DAYS}</span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {gs.shiftyUses > 0 && gs.shiftyCooldown <= 0 && <span title={`PC Shifty: ${gs.shiftyUses} uses left`} style={{ fontSize: 14 }}>🐷</span>}
+                {gs.shiftyUses > 0 && gs.shiftyCooldown > 0 && <span title={`Shifty's not about (${gs.shiftyCooldown} travels)`} style={{ fontSize: 14, opacity: 0.4 }}>🐷</span>}
+                {gs.jamalActive && <span title="Rolling with Jamal" style={{ fontSize: 14 }}>💪</span>}
+                <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs((p) => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+              </div>
+            </div>
+            <div style={{ fontFamily: font, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span style={{ color: T.textDim }}>Cash:</span><span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span style={{ color: T.textDim }}>Bank:</span><span style={{ color: T.blue }}>£{gs.bank.toLocaleString()}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}><span style={{ color: T.textDim }}>Debt:</span><span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></div>
+            </div>
+          </div>
+          )}
+          <div style={{ ...panelStyle, flex: 1, padding: "12px 16px" }}>
+            <div style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 2 }}>{BOROUGHS[gs.borough].locations[gs.location]}</div>
+            <div style={{ fontSize: 12, color: T.textDim, marginBottom: 10 }}>{BOROUGHS[gs.borough].name}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginBottom: 8 }}>
+              {BOROUGHS[gs.borough].locations.map((loc, i) => {
+                const isCur = i === gs.location;
+                return (<button key={i} disabled={isCur} style={{ ...btnStyle(false), fontSize: 11, padding: "5px 6px", opacity: isCur ? 0.35 : 1, cursor: isCur ? "default" : "pointer" }}
+                  onClick={() => doTravel(gs.borough, i)}>{loc}</button>);
+              })}
+            </div>
+            <button style={{ ...btnStyle(true), width: "100%", fontSize: 12, padding: "7px" }}
+              onClick={() => setGs((p) => ({ ...p, travelPopup: true, travelBorough: null }))}>🚇 Travel to another borough</button>
+          </div>
+        </div>
+
+        {/* ACHIEVEMENT BOXES */}
+        <div style={{ display: "flex", gap: 3, justifyContent: "center", flexWrap: "wrap" }}>
+          {ACHIEVEMENT_LIST.map((a) => {
+            const unlocked = gs.milestones[a.key];
+            const isNew = newUnlocks[a.key];
+            return (
+              <div key={a.key} style={{ width: isMobile ? 26 : 36, height: isMobile ? 26 : 36, borderRadius: 6,
+                background: T.bg,
+                border: `1px solid ${T.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: isMobile ? 14 : 18, transition: "all 0.3s",
+                ...(isNew ? { animation: "achGlow 5s ease-out forwards" } : {}) }}>
+                {unlocked ? a.icon : ""}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* MILESTONE TOAST */}
+        {gs.milestoneToast && (Array.isArray(gs.milestoneToast) ? gs.milestoneToast : [gs.milestoneToast]).length > 0 && (
+          <div style={{ ...panelStyle, padding: "10px 14px", background: "rgba(242,138,31,0.15)", border: `1px solid ${T.accent}`,
+            fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.accent, textAlign: "center" }}>
+            {(Array.isArray(gs.milestoneToast) ? gs.milestoneToast : [gs.milestoneToast]).map((t, i) => (
+              <div key={i}>🏆 {t.icon} {t.text}</div>
+            ))}
+          </div>
+        )}
+
+        {/* EVENT BAR */}
+        <div style={{ ...panelStyle, padding: "8px 14px", background: eventBg, border: eventBorder, fontFamily: font, fontSize: 12, color: T.text, minHeight: 52, lineHeight: 1.5, overflowWrap: "break-word", wordBreak: "break-word" }}>
+          <div style={{ opacity: gs.eventFaded ? 0 : 1, transition: "opacity 1.5s ease-out" }}>{gs.eventMsg || `You've just landed on ends. You got ${MAX_DAYS} days to make as much P's as possible.`}</div>
+          {gs.tradeMsg && <div style={{ color: T.accent, marginTop: 4, fontSize: 11 }}>{gs.tradeMsg}</div>}
+        </div>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@keyframes fadeMsg { 0% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes achGlow { 0% { box-shadow: 0 0 12px rgba(242,138,31,0.8); border-color: #f28a1f; } 70% { box-shadow: 0 0 8px rgba(242,138,31,0.4); } 100% { box-shadow: none; border-color: #555555; } }`}</style>
+
+        {/* CENTER BUTTONS — always on top on mobile */}
+        {isMobile && (
+          <div style={{ display: "flex", gap: 6, width: "100%" }}>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, financePopup: true }))}>Finances</button>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, shopPopup: true }))}>🛒 Shop</button>
+            <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: true }))}>📊 History</button>
+            {gs.day === MAX_DAYS && (
+              <button style={{ ...btnStyle(true), flex: 1, fontSize: 11, padding: "6px", background: T.red, color: T.white }} onClick={endGame}>Cash Out</button>
+            )}
+          </div>
+        )}
+
+        {/* DRUG PANELS — always side by side */}
+        <div style={{ display: "flex", gap: 8, flexDirection: "row" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Available to buy</div>
+            <div style={{ ...panelStyle, overflow: "hidden" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
+                <span></span><span>Drug</span><span style={{ textAlign: "right" }}>Price</span>
+              </div>
+              {ITEMS.map((item, i) => {
+                const avail = gs.drugAvail ? gs.drugAvail[i] : true;
+                if (!avail) return null;
+                const up = gs.prices[i] > gs.prevPrices[i]; const down = gs.prices[i] < gs.prevPrices[i];
+                const isMega = gs.prices[i] > item.basePrice * 6;
+                return (
+                  <div key={i} onClick={() => { setGs((p) => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); }}
+                    style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: isMobile ? 11 : 12, padding: isMobile ? "5px 6px" : "6px 10px",
+                      cursor: "pointer",
+                      background: isMega ? "rgba(242,138,31,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
+                      borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = T.accentDim}
+                    onMouseLeave={(e) => e.currentTarget.style.background = isMega ? "rgba(242,138,31,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)"}>
+                    <span style={{ fontSize: 10 }}>
+                      {up ? <span style={{ color: T.green }}>▲</span> : down ? <span style={{ color: T.red }}>▼</span> : <span style={{ color: T.textMuted }}>–</span>}
+                    </span>
+                    <span style={{ color: isMega ? T.accent : T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isMega ? "🔥 " : ""}{item.name}</span>
+                    <span style={{ textAlign: "right", color: T.accent }}>£{gs.prices[i].toLocaleString()}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* CENTER BUTTONS — desktop only (between panels) */}
+          {!isMobile && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 22, width: 108, alignItems: "center" }}>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, financePopup: true }))}>Finances</button>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, shopPopup: true }))}>🛒 Shop</button>
+              <button style={{ ...btnStyle(false), width: "100%", fontSize: 11, padding: "6px" }} onClick={() => setGs((p) => ({ ...p, priceHistoryPopup: true }))}>📊 History</button>
+              {gs.day === MAX_DAYS && (
+                <button style={{ ...btnStyle(true), width: "100%", fontSize: 11, padding: "6px", background: T.red, color: T.white }} onClick={endGame}>Cash Out</button>
+              )}
+            </div>
+          )}
+
+          {/* STASH */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: 1 }}>Stash to sell</span>
+              <span style={{ fontFamily: font, fontSize: isMobile ? 10 : 11, color: T.textDim }}>{space}/{gs.capacity}</span>
+            </div>
+            <div style={{ ...panelStyle, overflow: "hidden", minHeight: isMobile ? 0 : 200 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 30px 52px" : "1fr 40px 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
+                <span>Drug</span><span style={{ textAlign: "right" }}>Qty</span><span style={{ textAlign: "right" }}>Avg</span>
+              </div>
+              {stashItems.length === 0 ? (
+                <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted, padding: 16, textAlign: "center" }}>Empty</div>
+              ) : stashItems.map((item, i) => {
+                const canSell = gs.drugAvail ? gs.drugAvail[item.idx] : true;
+                return (
+                <div key={item.idx} onClick={() => {
+                  if (!canSell) {
+                    setGs((p) => ({ ...p, tradeMsg: `No buyers for ${item.name} round here. Try another area.` }));
+                    return;
+                  }
+                  setGs((p) => ({ ...p, qtyPopup: { type: "sell", itemIdx: item.idx } })); setQtyInput("");
+                }}
+                  style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 30px 52px" : "1fr 40px 72px", fontFamily: font, fontSize: isMobile ? 11 : 12, padding: isMobile ? "5px 6px" : "6px 10px",
+                    cursor: "pointer",
+                    background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)", borderBottom: `1px solid ${T.border}`, transition: "background 0.1s" }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = T.accentDim}
+                  onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)"}>
+                  <span style={{ color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                  <span style={{ textAlign: "right", color: T.text }}>{item.qty}</span>
+                  <span style={{ textAlign: "right", color: T.accent }}>£{item.avgPrice.toLocaleString()}</span>
+                </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center", marginTop: 12 }}>
+          <button style={{ ...btnStyle(false), fontSize: 11, padding: "6px 16px" }}
+            onClick={() => {
+              setGs((p) => ({ ...p, popup: mkPopup("What's the matter?", "🤔", "You sure you wanna quit? All progress will be lost.", [
+                { label: "Quit", primary: false, action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } },
+                { label: "Keep going", primary: true, action: "dismiss" },
+              ])}));
+            }}>New Game</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// Mount the app
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(StreetWarsLondon));
+  </script>
+</body>
+</html>
