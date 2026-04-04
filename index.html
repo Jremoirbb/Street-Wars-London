@@ -812,7 +812,7 @@ function StreetWarsLondon() {
     if (gs.activeTip && gs.activeTip.borough === bIdx && gs.activeTip.location === lIdx) {
       const tip = gs.activeTip;
       if (tip.type === "expensive") {
-        newPrices[tip.itemIdx] = Math.round(ITEMS[tip.itemIdx].basePrice * (5 + Math.random() * 6));
+        newPrices[tip.itemIdx] = Math.round(ITEMS[tip.itemIdx].basePrice * (2.5 + Math.random() * 1.5));
         tipMsg = `The tip was right! ${ITEMS[tip.itemIdx].name} prices are through the roof here.`;
       } else {
         newPrices[tip.itemIdx] = Math.max(1, Math.round(ITEMS[tip.itemIdx].basePrice * (0.05 + Math.random() * 0.15)));
@@ -825,10 +825,10 @@ function StreetWarsLondon() {
     if (gs.pendingNews && gs.pendingNews.borough === bIdx && gs.pendingNews.location === lIdx) {
       const news = gs.pendingNews;
       if (news.type === "mega") {
-        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (8 + Math.random() * 12));
+        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (4 + Math.random() * 3));
         newsMsg = `🔥 The news was right! ${ITEMS[news.itemIdx].name} is going for insane prices here!`;
       } else if (news.type === "spike") {
-        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (2.5 + Math.random() * 3));
+        newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * (2 + Math.random() * 1.5));
         newsMsg = `📰 Just like the paper said — ${ITEMS[news.itemIdx].name} prices are well up here.`;
       } else {
         newPrices[news.itemIdx] = Math.max(1, Math.round(ITEMS[news.itemIdx].basePrice * 0.1));
@@ -1558,7 +1558,7 @@ function StreetWarsLondon() {
         {/* DRUG PANELS — always side by side */}
         <div style={{ display: "flex", gap: 8, flexDirection: "row" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Available to buy</div>
+            <div style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Available drugs to buy</div>
             <div style={{ ...panelStyle, overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: 10, fontWeight: 700, padding: "6px 10px", background: T.surfaceAlt, color: T.textMuted, textTransform: "uppercase", letterSpacing: 0.5, borderBottom: `1px solid ${T.border}` }}>
                 <span></span><span>Drug</span><span style={{ textAlign: "right" }}>Price</span>
@@ -1567,7 +1567,7 @@ function StreetWarsLondon() {
                 const avail = gs.drugAvail ? gs.drugAvail[i] : true;
                 if (!avail) return null;
                 const up = gs.prices[i] > gs.prevPrices[i]; const down = gs.prices[i] < gs.prevPrices[i];
-                const isMega = gs.prices[i] > item.basePrice * 6;
+                const isMega = gs.prices[i] > item.basePrice * 3;
                 return (
                   <div key={i} onClick={() => { setGs((p) => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); }}
                     style={{ display: "grid", gridTemplateColumns: isMobile ? "14px 1fr 52px" : "20px 1fr 72px", fontFamily: font, fontSize: isMobile ? 11 : 12, padding: isMobile ? "5px 6px" : "6px 10px",
@@ -1602,7 +1602,7 @@ function StreetWarsLondon() {
           {/* STASH */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: 1 }}>Stash to sell</span>
+              <span style={{ fontSize: isMobile ? 10 : 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: 1 }}>Your stash to sell</span>
               <span style={{ fontFamily: font, fontSize: isMobile ? 10 : 11, color: T.textDim }}>{space}/{gs.capacity}</span>
             </div>
             <div style={{ ...panelStyle, overflow: "hidden", minHeight: isMobile ? 0 : 200 }}>
