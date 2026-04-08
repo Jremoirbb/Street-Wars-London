@@ -178,11 +178,9 @@ const ITEMS = [
   { name: "Weed", basePrice: 400, volatility: 1.8, heatTier: "none" },
 ];
 
-const TRANSPORT = [
-  { name: "Duffel Bags", capacity: 20, cost: 0, desc: "Low profile. Rented pickup." },
-  { name: "Cargo Truck", capacity: 50, cost: 30000, desc: "Warehouse contact. Regional hauling." },
-  { name: "Cargo Plane", capacity: 100, cost: 75000, desc: "Chartered flights. Cross-border." },
-  { name: "Container Network", capacity: 200, cost: 150000, desc: "Global shipping infrastructure." },
+const JACKETS = [
+  { name: "Moncler Jacket", capacity: 25, cost: 20000, desc: "Looking fresh, extra pockets.", muggingBonus: 0.05 },
+  { name: "Canada Goose", capacity: 40, cost: 40000, desc: "Big coat energy.", muggingBonus: 0.08, requiresPrev: true },
 ];
 
 
@@ -613,10 +611,12 @@ function rollEvent(gs) {
   const totalInv = gs.inventory.reduce((a, b) => a + b, 0);
   const boroughRisk = BOROUGHS[gs.borough].riskBias;
 
+  const policeBonus = gs.jamalActive ? 0.08 : 0;
+  const muggingBonus = (gs.shiftyBought ? 0.08 : 0) + (gs.jacketLevel >= 2 ? 0.08 : gs.jacketLevel >= 1 ? 0.05 : 0);
   const nothing = 0.15;
-  const interpol = gs.alertLevel > 10 ? 0.05 + alertScale * 0.25 + cargoFactor : 0;
+  const interpol = gs.alertLevel > 10 ? 0.05 + alertScale * 0.25 + cargoFactor + policeBonus : 0;
   const cia = 0.06 + alertScale * 0.15 + boroughRisk * 0.2;
-  const rivals = totalInv > 0 ? 0.06 + (gs.turnsInBorough > 3 ? 0.06 : 0) : 0;
+  const rivals = totalInv > 0 ? 0.06 + (gs.turnsInBorough > 3 ? 0.06 : 0) + muggingBonus : 0;
   const militia = 0.06 + boroughRisk * 0.2;
   const wireSurge = 0.10;
   const wireCrash = 0.08;
@@ -657,7 +657,10 @@ function getInitialState() {
   return {
     phase: "title", day: 1, cash: 5000,
     borough, location: Math.floor(Math.random() * 6),
-    capacity: 20, transportLevel: 0,
+    capacity: 100, jacketLevel: 0,
+    shiftyTier: 0, shiftyUses: 0, shiftyCooldown: 0, shiftyBought: false,
+    jamalActive: false, jamalBlocks: 0, jamalGhost: 0, jamalBought: false,
+    protectionChoice: null,
     inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0),
     prices, prevPrices: prices, itemAvail,
     priceHistory: [],
@@ -679,8 +682,8 @@ function getInitialState() {
     health: 100, medicalCooldown: 0,
     creditorProtectionUsed: { militia: 0, rivals: 0 }, debtPaymentsMade: 0,
     cashedOut: false, selectedItem: null, showTutorial: false, tutorialSeen: { header: false, location: false, market: false, buttons: false },
-    disclosed: { services: false, transport: false, priceHistory: false, cashOut: false },
-    glowShown: { services: false, transport: false, priceHistory: false, cashOut: false },
+    disclosed: { services: false, shop: false, priceHistory: false, cashOut: false },
+    glowShown: { services: false, shop: false, priceHistory: false, cashOut: false },
     playerName: "", muted: false, creditorCarouselIndex: 0,
   };
 }
@@ -754,7 +757,7 @@ function GreyMarket() {
       const d = { ...p.disclosed };
       let changed = false;
       if (!d.services && p.day >= 4) { d.services = true; changed = true; }
-      if (!d.transport && p.cash >= 50000) { d.transport = true; changed = true; }
+      if (!d.shop && p.cash >= 15000) { d.shop = true; changed = true; }
       if (!d.priceHistory && p.day > 1) { d.priceHistory = true; changed = true; }
       if (!d.cashOut && (p.debt <= 0 || p.day >= MAX_DAYS)) { d.cashOut = true; changed = true; }
       return changed ? { ...p, disclosed: d } : p;
@@ -967,6 +970,19 @@ function GreyMarket() {
       // === INTERPOL ===
       if (eventType === "interpol") {
         SFX.interpol();
+        // Shifty auto-resolve
+        if (prev.shiftyTier > 0 && prev.shiftyUses > 0 && prev.shiftyCooldown === 0 && totalInventory(prev.inventory) > 0) {
+          const newCooldown = 3 + Math.floor(Math.random() * 2);
+          const usesLeft = prev.shiftyUses - 1;
+          const shiftyGone = usesLeft === 0 && prev.shiftyTier >= 3;
+          const needsReup = usesLeft === 0 && prev.shiftyTier < 3;
+          const statusMsg = shiftyGone ? " Shifty's gone. Used up all his favours." : needsReup ? " Shifty needs re-upping. Visit the Shop." : " " + usesLeft + " uses remaining.";
+          return { ...prev, shiftyUses: usesLeft, shiftyCooldown: newCooldown, alertLevel: Math.max(0, prev.alertLevel - 5),
+            encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
+            eventMsg: "You mentioned Shifty. Officers backed off." + statusMsg, eventType: "good",
+            popup: mkPopup("PC SHIFTY", null, "You drop Shifty's name. The officers exchange a look, nod, and wave you through.\n\nHeat: -5%." + statusMsg,
+              [{ label: "Walk", action: "dismiss" }]) };
+        }
         if (alert < 35) {
           const msg = pickNew(INTERPOL_LOW_MSGS, prev.lastMessageShown);
           return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
@@ -1097,6 +1113,23 @@ function GreyMarket() {
 
       // === RIVALS ===
       if (eventType === "rivals") {
+        // Jamal auto-block
+        if (prev.jamalActive && prev.jamalBlocks > 0) {
+          const blocksLeft = prev.jamalBlocks - 1;
+          const jamalMsgs = ["Jamal stepped in. Handled.", "Jamal saw them coming. They didn't get close.", "Jamal dealt with it. You didn't even have to look up."];
+          const jmsg = pick(jamalMsgs);
+          if (blocksLeft === 0) {
+            const ghostTime = 5 + Math.floor(Math.random() * 4);
+            return { ...prev, jamalBlocks: 0, jamalActive: false, jamalGhost: ghostTime,
+              encounterStats: { ...prev.encounterStats, rivals: prev.encounterStats.rivals + 1 },
+              eventMsg: jmsg + " Jamal's gone ghost. He'll be back... maybe.", eventType: "good",
+              popup: mkPopup("JAMAL", null, jmsg + "\n\nJamal's gone ghost. He'll be back in a while.", [{ label: "Safe", action: "dismiss" }]) };
+          }
+          return { ...prev, jamalBlocks: blocksLeft,
+            encounterStats: { ...prev.encounterStats, rivals: prev.encounterStats.rivals + 1 },
+            eventMsg: jmsg, eventType: "good",
+            popup: mkPopup("JAMAL", null, jmsg, [{ label: "Safe", action: "dismiss" }]) };
+        }
         SFX.threat();
         const msg = pickNew(RIVAL_MSGS, prev.lastMessageShown);
         return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, rivals: prev.encounterStats.rivals + 1 },
@@ -1417,6 +1450,8 @@ function GreyMarket() {
         counterSurvCooldown: Math.max(0, prev.counterSurvCooldown - daysCost),
         medicalCooldown: Math.max(0, prev.medicalCooldown - daysCost),
         disappearCooldown: Math.max(0, prev.disappearCooldown - daysCost),
+        shiftyCooldown: Math.max(0, prev.shiftyCooldown - daysCost),
+        jamalGhost: Math.max(0, prev.jamalGhost - daysCost),
         eventMsg: arrivalMsg || dm || ("Arrived in " + BOROUGHS[rIdx].locations[cIdx] + ", " + BOROUGHS[rIdx].name + "." + transitNote + debtMsg),
         eventType: arrivalMsg ? "good" : dm ? "bad" : "neutral",
         eventFades: false, eventFaded: false,
@@ -1453,6 +1488,8 @@ function GreyMarket() {
         portOfficialCooldown: Math.max(0, prev.portOfficialCooldown - 1),
         counterSurvCooldown: Math.max(0, prev.counterSurvCooldown - 1),
         medicalCooldown: Math.max(0, prev.medicalCooldown - 1),
+        shiftyCooldown: Math.max(0, prev.shiftyCooldown - 1),
+        jamalGhost: Math.max(0, prev.jamalGhost - 1),
         tradeMsg: null, popup: null,
         eventMsg: dm || ("Disappeared. Alert level reduced." + debtMsg + " (" + usesAfter + " left)"),
         eventType: dm ? "bad" : "neutral", eventFades: false, eventFaded: false,
@@ -1904,10 +1941,10 @@ function GreyMarket() {
     const allSeen = ts.header && ts.location && ts.market && ts.buttons;
     const glowStyle = (key) => !ts[key] ? { animation: "tutorial-glow 1.5s ease-in-out infinite", borderRadius: 8 } : {};
     const tutorialExplainers = {
-      header: { title: "DASHBOARD", text: "This is your dashboard. Cash is what you're carrying. Debt is what you owe your creditor — interest compounds every day. The bar shows how close Interpol is to catching you.", tip: "Pay your debt early. Interest will eat you alive." },
+      header: { title: "DASHBOARD", text: "This is your dashboard. Cash is what you're carrying. Debt is what you owe your creditor — interest compounds every day. The bar shows your heat level.", tip: "Pay your debt early. Interest will eat you alive." },
       location: { title: "LOCATION", text: "This is where you are. Tap a location to travel within the borough (1 day). Tap Travel to move between boroughs (2 days). Prices change every time you move.", tip: "Different boroughs have different prices. That's where the profit is." },
       market: { title: "MARKET", text: "These are the items available at your current location. Prices on the left, your holdings on the right. Tap any row to buy or sell.", tip: "Track what you paid. Sell for more than that. That's the whole game." },
-      buttons: { title: "TOOLS", text: "These are your tools. Pay your creditor here. More options appear as you play — services to reduce heat, transport to carry more, and ways to disappear when things get dangerous.", tip: "You won't need all of these on day one. Focus on trading." },
+      buttons: { title: "TOOLS", text: "These are your tools. Pay your creditor here. More options appear as you play — services to reduce heat, a shop for gear and protection, and ways to disappear when things get dangerous.", tip: "You won't need all of these on day one. Focus on trading." },
     };
     const [tutorialActive, setTutorialActive] = React.useState(null);
     return (
@@ -1917,8 +1954,8 @@ function GreyMarket() {
           style={{ ...panelStyle, padding: "8px 12px", marginBottom: 6, ...glowStyle("header"), cursor: !ts.header ? "pointer" : "default" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontFamily: font, fontSize: 14, fontWeight: 700, color: T.accent }}>Day 1/30</span>
-            <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Cash: <span style={{ fontSize: 14, fontWeight: 700, color: T.green }}>£17,500</span></span>
-            <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Debt: <span style={{ fontSize: 14, fontWeight: 700, color: T.red }}>£25,000</span></span>
+            <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Cash: <span style={{ fontSize: 14, fontWeight: 700, color: T.green }}>£4,000</span></span>
+            <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Debt: <span style={{ fontSize: 14, fontWeight: 700, color: T.red }}>£4,000</span></span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase" }}>INTERPOL</span>
@@ -2191,7 +2228,6 @@ function GreyMarket() {
       })()}
       <TravelPopup />
 
-      {/* TRANSPORT POPUP */}
       {/* SERVICES POPUP */}
       {gs.servicesPopup && (
         <Overlay onClose={() => setGs(p => ({ ...p, servicesPopup: false }))}>
@@ -2282,42 +2318,107 @@ function GreyMarket() {
           </ModalBox>
         </Overlay>
       )}
-      {/* TRANSPORT POPUP */}
+      {/* SHOP POPUP */}
       {gs.shopPopup && (
         <Overlay onClose={() => setGs(p => ({ ...p, shopPopup: false }))}>
-          <ModalBox title="TRANSPORT" width={420}>
-            <div style={{ fontFamily: sansFont, fontSize: 12, color: T.textDim, marginBottom: 10 }}>
-              Upgrade capacity. Larger shipments — and more visibility.
-            </div>
+          <ModalBox title="SHOP" width={440}>
+            <div style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>CAPACITY UPGRADES</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {TRANSPORT.map((t, i) => {
-                const owned = gs.transportLevel >= i;
-                const canBuy = !owned && gs.transportLevel === i - 1 && gs.cash >= t.cost;
-                const isNext = gs.transportLevel === i - 1;
+              {JACKETS.map((j, i) => {
+                const owned = gs.jacketLevel > i;
+                const canBuy = !owned && (i === 0 || gs.jacketLevel >= i) && gs.cash >= j.cost;
+                const locked = i > 0 && gs.jacketLevel < i;
                 return (
                   <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: owned ? T.surfaceAlt : T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
                     <div>
-                      <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{t.name}</div>
-                      <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>{t.capacity + " units · " + t.desc}</div>
+                      <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{j.name}</div>
+                      <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>{"+" + j.capacity + " capacity · " + j.desc}</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"+" + Math.round(j.muggingBonus * 100) + "% mugging risk"}</div>
                     </div>
                     {owned ? (
-                      <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Active</span>
-                    ) : isNext ? (
+                      <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Owned</span>
+                    ) : locked ? (
+                      <span style={{ fontFamily: font, fontSize: 11, color: T.textMuted }}>Locked</span>
+                    ) : (
                       <button style={{ ...btnStyle(canBuy), opacity: canBuy ? 1 : 0.4 }} onClick={() => {
                         if (canBuy) {
-                          setGs(p => ({ ...p, cash: p.cash - t.cost, capacity: t.capacity, transportLevel: i, alertLevel: Math.min(100, p.alertLevel + 3),
-                            eventMsg: "Transport upgraded to " + t.name + ". Capacity: " + t.capacity + " units.", eventType: "good" }));
-                        } else {
-                          setGs(p => ({ ...p, eventMsg: "Insufficient funds.", eventType: "bad" }));
+                          setGs(p => ({ ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
+                            eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units.", eventType: "good" }));
                         }
-                      }}>{t.cost === 0 ? "Free" : "£" + t.cost.toLocaleString()}</button>
-                    ) : (
-                      <span style={{ fontFamily: font, fontSize: 11, color: T.textMuted }}>Locked</span>
+                      }}>{"£" + j.cost.toLocaleString()}</button>
                     )}
                   </div>
                 );
               })}
             </div>
+            <div style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>PROTECTION</div>
+            {(() => {
+              const nw = netWorth(gs);
+              const shiftyCost = gs.shiftyTier === 0 ? Math.max(5000, Math.floor(nw * 0.05)) : gs.shiftyTier === 1 ? Math.max(15000, Math.floor(nw * 0.10)) : Math.max(30000, Math.floor(nw * 0.15));
+              const jamalCost = Math.max(5000, Math.floor(gs.cash * 0.15));
+              const shiftyLocked = gs.protectionChoice === "jamal";
+              const jamalLocked = gs.protectionChoice === "shifty";
+              const shiftyMaxed = gs.shiftyTier >= 3;
+              const shiftyNeedsReup = gs.shiftyTier > 0 && gs.shiftyUses === 0 && !shiftyMaxed;
+              const shiftyAvail = !shiftyLocked && !shiftyMaxed && (gs.shiftyTier === 0 || shiftyNeedsReup);
+              const jamalAvail = !jamalLocked && !gs.jamalActive && gs.jamalGhost === 0;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                  <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{"🐷 PC Shifty"}{gs.shiftyTier > 0 ? " (Tier " + gs.shiftyTier + ")" : ""}</div>
+                        <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Anti-police. Mentions get you out of stops.</div>
+                        {gs.shiftyTier > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.accent }}>{"Uses: " + gs.shiftyUses + (gs.shiftyCooldown > 0 ? " · Cooldown: " + gs.shiftyCooldown + " days" : "")}</div>}
+                        <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>+8% mugging risk once bought</div>
+                      </div>
+                      {shiftyLocked ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, textAlign: "right", maxWidth: 120 }}>Shifty ain't working with Jamal</span>
+                      ) : shiftyMaxed ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>Gone</span>
+                      ) : shiftyAvail ? (
+                        <button style={{ ...btnStyle(gs.cash >= shiftyCost), opacity: gs.cash >= shiftyCost ? 1 : 0.4 }} onClick={() => {
+                          if (gs.cash >= shiftyCost) {
+                            setGs(p => ({ ...p, cash: p.cash - shiftyCost, shiftyTier: p.shiftyTier + 1, shiftyUses: 2, shiftyBought: true, protectionChoice: "shifty",
+                              eventMsg: "PC Shifty — Tier " + (p.shiftyTier + 1) + ". 2 uses.", eventType: "good" }));
+                          }
+                        }}>{"£" + shiftyCost.toLocaleString()}</button>
+                      ) : gs.shiftyTier > 0 && gs.shiftyUses > 0 ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.green }}>Active</span>
+                      ) : (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>—</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{"💪 Jamal"}{gs.jamalActive ? " (Active)" : ""}</div>
+                        <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Anti-mugging. Blocks attacks automatically.</div>
+                        {gs.jamalGhost > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"Ghost for " + gs.jamalGhost + " more days"}</div>}
+                        <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>+8% police risk while active</div>
+                      </div>
+                      {jamalLocked ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, textAlign: "right", maxWidth: 120 }}>Jamal don't roll with snitches</span>
+                      ) : gs.jamalActive ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.green }}>Hired</span>
+                      ) : jamalAvail ? (
+                        <button style={{ ...btnStyle(gs.cash >= jamalCost), opacity: gs.cash >= jamalCost ? 1 : 0.4 }} onClick={() => {
+                          if (gs.cash >= jamalCost) {
+                            setGs(p => ({ ...p, cash: p.cash - jamalCost, jamalActive: true, jamalBlocks: 2, jamalBought: true, protectionChoice: "jamal",
+                              eventMsg: "Jamal's on it. You're covered.", eventType: "good" }));
+                          }
+                        }}>{"£" + jamalCost.toLocaleString()}</button>
+                      ) : gs.jamalGhost > 0 ? (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>Ghost</span>
+                      ) : (
+                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>—</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button style={btnStyle(false)} onClick={() => setGs(p => ({ ...p, shopPopup: false }))}>Close</button>
             </div>
@@ -2584,10 +2685,10 @@ function GreyMarket() {
                   <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("services") }} disabled={lastDay}
                     onClick={() => { if (!lastDay) setGs(p => ({ ...p, servicesPopup: true })); }}>Services</button>
                 ); })()}
-                {/* Transport — cash >= 50k */}
-                {d.transport && (() => { markGlow("transport"); return (
-                  <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("transport") }} disabled={lastDay}
-                    onClick={() => { if (!lastDay) setGs(p => ({ ...p, shopPopup: true })); }}>Transport</button>
+                {/* Shop — cash >= 15k */}
+                {d.shop && (() => { markGlow("shop"); return (
+                  <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("shop") }} disabled={lastDay}
+                    onClick={() => { if (!lastDay) setGs(p => ({ ...p, shopPopup: true })); }}>Shop</button>
                 ); })()}
                 {/* Price History — after first travel */}
                 {d.priceHistory && (() => { markGlow("priceHistory"); return (
