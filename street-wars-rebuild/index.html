@@ -906,100 +906,161 @@ function GreyMarket() {
       // === POLICE ===
       if (eventType === "police") {
         SFX.interpol();
-        // Shifty auto-resolve
-        if (prev.shiftyTier > 0 && prev.shiftyUses > 0 && prev.shiftyCooldown === 0 && totalInventory(prev.inventory) > 0) {
-          const newCooldown = 3 + Math.floor(Math.random() * 2);
-          const usesLeft = prev.shiftyUses - 1;
-          const shiftyGone = usesLeft === 0 && prev.shiftyTier >= 3;
-          const needsReup = usesLeft === 0 && prev.shiftyTier < 3;
-          const statusMsg = shiftyGone ? " Shifty's gone. Used up all his favours." : needsReup ? " Shifty needs re-upping. Visit the Shop." : " " + usesLeft + " uses remaining.";
-          return { ...prev, shiftyUses: usesLeft, shiftyCooldown: newCooldown, heat: Math.max(0, prev.heat - 5),
-            encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
-            eventMsg: "You mentioned Shifty. Officers backed off." + statusMsg, eventType: "good",
-            popup: mkPopup("PC SHIFTY", null, "You drop Shifty's name. The officers exchange a look, nod, and wave you through.\n\nHeat: -5%." + statusMsg,
-              [{ label: "Walk", action: "dismiss" }]) };
-        }
+        const loc = BOROUGHS[prev.borough].locations[prev.location];
+        const totalInv = totalInventory(prev.inventory);
+
+        // === Helper: Mention Shifty button ===
+        const shiftyBtn = (prev.shiftyTier > 0 && prev.shiftyUses > 0 && prev.shiftyCooldown === 0 && totalInv > 0) ? {
+          label: "🐷 Mention Shifty", primary: true, action: () => setGs(p => {
+            const cd = 3 + Math.floor(Math.random() * 2);
+            const ul = p.shiftyUses - 1;
+            const gone = ul === 0 && p.shiftyTier >= 3;
+            const reup = ul === 0 && p.shiftyTier < 3;
+            const st = gone ? " Shifty's gone. Used up all his favours." : reup ? " Shifty needs re-upping. Visit the Shop." : " " + ul + " uses left.";
+            const msgs = ["You dropped Shifty's name. The officers looked at each other. 'Alright, on your way.' Just like that.", "One mention of Shifty and the whole thing changed. 'We haven't seen you.' They walked away.", "Shifty's name did the work. Feds suddenly had somewhere else to be. You walk."];
+            return { ...p, shiftyUses: ul, shiftyCooldown: cd, heat: Math.max(0, p.heat - 5), popup: null,
+              eventMsg: pick(msgs) + st, eventType: "good" };
+          })
+        } : null;
+
+        // === Helper: Run button ===
+        const runBtn = { label: "🏃 Run", action: () => setGs(p => {
+          if (Math.random() < 0.35) {
+            const msgs = ["You legged it through " + loc + ". Lost them in the back streets. Heart pounding. You're clear.", "You ran. They chased. You were faster. Just. Gone through a fence and into the estates.", "Sprinted through " + loc + " market. Knocked over a stall. They gave up after two blocks."];
+            return { ...p, popup: null, eventMsg: pick(msgs), eventType: "good" };
+          } else {
+            const msgs = ["You ran. They were faster. Tackled in " + loc + ". They found everything.", "Tried to leg it. Didn't make it past the corner. Face on the pavement in " + loc + ".", "You bolted but they had backup. Caught you in " + loc + ". Rough handling. They took what they wanted."];
+            const inv = [...p.inventory]; const avg = [...p.avgCost];
+            const sorted = inv.map((qty, i) => ({ idx: i, qty, val: qty * p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.val - a.val);
+            if (sorted.length > 0) { const pct = 0.7 + Math.random() * 0.1; const lost = Math.ceil(sorted[0].qty * pct); inv[sorted[0].idx] = Math.max(0, inv[sorted[0].idx] - lost); if (inv[sorted[0].idx] === 0) avg[sorted[0].idx] = 0; }
+            const cashLost = Math.min(p.cash, Math.floor(p.cash * 0.2));
+            const heatGain = 5 + Math.floor(Math.random() * 6);
+            const newDay = Math.min(p.day + 1, MAX_DAYS);
+            const newDebt = p.debt > 0 ? Math.round(p.debt * (1 + p.debtInterest)) : 0;
+            return { ...p, inventory: inv, avgCost: avg, cash: p.cash - cashLost, health: Math.max(0, p.health - 10), heat: Math.min(100, p.heat + heatGain), day: newDay, debt: newDebt, popup: null,
+              eventMsg: pick(msgs), eventType: "bad" };
+          }
+        }) };
+
+        // === Helper: Dump button ===
+        const dumpBtn = { label: "🗑️ Dump Everything", action: () => setGs(p => {
+          const msgs = ["You ditched everything. Down a drain in " + loc + ". Nothing on you when they searched. Free to go.", "Bags in a bin. Pockets empty. They found nothing. You walk away clean but broke.", "Everything went over a wall in " + loc + ". Your whole stash. Gone. But so are the feds."];
+          return { ...p, inventory: p.inventory.map(() => 0), avgCost: p.avgCost.map(() => 0), popup: null,
+            eventMsg: pick(msgs), eventType: "bad" };
+        }) };
+
+        // === Helper: Surrender button ===
+        const surrenderBtn = { label: "🤲 Surrender", action: () => setGs(p => {
+          const msgs = ["You didn't run. Hands up in " + loc + ". They took what they found and processed you.", "You cooperated. They took your biggest stash and held you for the day. Could've been worse.", "Surrendered in " + loc + ". They weren't gentle but they were quick. Took your gear and a day of your life."];
+          const inv = [...p.inventory]; const avg = [...p.avgCost];
+          const sorted = inv.map((qty, i) => ({ idx: i, qty, val: qty * p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.val - a.val);
+          if (sorted.length > 0) { const pct = 0.6 + Math.random() * 0.2; const lost = Math.ceil(sorted[0].qty * pct); inv[sorted[0].idx] = Math.max(0, inv[sorted[0].idx] - lost); if (inv[sorted[0].idx] === 0) avg[sorted[0].idx] = 0; }
+          const newDay = Math.min(p.day + 1, MAX_DAYS);
+          const newDebt = p.debt > 0 ? Math.round(p.debt * (1 + p.debtInterest)) : 0;
+          return { ...p, inventory: inv, avgCost: avg, health: Math.max(0, p.health - 5), day: newDay, debt: newDebt, popup: null,
+            eventMsg: pick(msgs), eventType: "bad" };
+        }) };
+
+        // === Helper: Seizure action ===
+        const makeSeizeAction = (seizeCount) => ({ label: "Accept Seizure", action: () => setGs(p => {
+          const sorted = p.inventory.map((qty, i) => ({ idx: i, qty, price: p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.price - a.price);
+          const inv = [...p.inventory]; const avg = [...p.avgCost];
+          let remaining = seizeCount; const seized = [];
+          for (const item of sorted) {
+            if (remaining <= 0) break;
+            const take = Math.min(inv[item.idx], remaining);
+            inv[item.idx] -= take; remaining -= take;
+            if (inv[item.idx] === 0) avg[item.idx] = 0;
+            if (take > 0) seized.push(take + " " + ITEMS[item.idx].name);
+          }
+          const seizeMsgs = ["They went through everything. Took the lot they could carry. 'Consider yourself lucky.'", "Seizure. They bagged up your gear right in front of you. Nothing you could do.", "They took what they wanted and wrote it up. Your stash is evidence now."];
+          return { ...p, inventory: inv, avgCost: avg, popup: null,
+            eventMsg: seizeCount > 0 ? pick(seizeMsgs) + " Seized: " + seized.join(", ") + "." : "Detained and released. Nothing on you.", eventType: "bad" };
+        }) });
+
+        // === Helper: Backhander action ===
+        const makeBackhanderAction = (bribe, heatDrop) => ({ label: "💰 Slip them £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => {
+          const msgs = ["Brown envelope changes hands. The officer nods. 'Don't let me see you again.' You won't.", "£" + bribe.toLocaleString() + " lighter but free. The backhander did its job. Feds look the other way.", "You slipped them £" + bribe.toLocaleString() + ". They pocketed it without blinking. 'Get out of here.'"];
+          return { ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - heatDrop),
+            eventMsg: pick(msgs), eventType: "bad" };
+        }) });
+
+        // ——— STOP AND SEARCH (heat < 35) ———
         if (alert < 35) {
+          if (totalInv === 0) {
+            const msgs = ["Feds stopped you in " + loc + ". Nothing on you. They let you go.", "Stop and search in " + loc + ". Empty pockets. They wave you on.", "Two officers. Pat down. Nothing to find. 'On your way.'"];
+            return { ...prev, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+              eventMsg: pick(msgs), eventType: "neutral",
+              popup: mkPopup("STOP & SEARCH", null, pick(msgs), [{ label: "Walk", action: "dismiss" }]) };
+          }
           const msg = pickNew(POLICE_LOW_MSGS, prev.lastMessageShown);
           return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
             eventMsg: "Police. Stop and search.", eventType: "bad",
-            popup: mkPopup("POLICE", null, msg + "\n\nYou are detained for the remainder of the day. No further action.",
-              [{ label: "Comply", action: "dismiss" }]) };
+            popup: mkPopup("STOP & SEARCH", null, msg, [
+              shiftyBtn,
+              runBtn,
+              dumpBtn,
+              surrenderBtn,
+            ].filter(Boolean)) };
         }
+
+        // ——— CID INVESTIGATION (heat 35-65) ———
         if (alert < 65) {
           const cargoVal = prev.inventory.reduce((sum, qty, i) => sum + qty * prev.prices[i], 0);
-          const bribe = cargoVal > 0 ? Math.max(5000, Math.floor(cargoVal * 0.20)) : Math.max(5000, Math.floor(prev.cash * 0.25));
+          const bribe = cargoVal > 0 ? Math.max(2000, Math.floor(cargoVal * 0.20)) : Math.max(2000, Math.floor(prev.cash * 0.25));
           const canBribe = prev.cash >= bribe;
           const seizePct = 0.3 + Math.random() * 0.2;
-          const seizeCount = Math.ceil(totalInventory(prev.inventory) * seizePct);
+          const seizeCount = Math.ceil(totalInv * seizePct);
           const msg = pickNew(POLICE_MED_MSGS, prev.lastMessageShown);
           return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
             eventMsg: "Police. CID investigation.", eventType: "bad",
-            popup: mkPopup("POLICE", null, msg + "\n\n" + (seizeCount > 0 ? "They will seize approximately " + seizeCount + " units (highest value first). Or you can pay" : "You can pay") + " a backhander of £" + bribe.toLocaleString() + ".",
-              [
-                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 5),
-                  eventMsg: "Backhander paid. £" + bribe.toLocaleString() + ". You walk.", eventType: "bad" })) } : null,
-                { label: seizeCount > 0 ? "Accept Seizure" : "Comply", action: () => setGs(p => {
-                  const sorted = p.inventory.map((qty, i) => ({ idx: i, qty, price: p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.price - a.price);
-                  const inv = [...p.inventory]; const avg = [...p.avgCost];
-                  let remaining = seizeCount; const seized = [];
-                  for (const item of sorted) {
-                    if (remaining <= 0) break;
-                    const take = Math.min(inv[item.idx], remaining);
-                    inv[item.idx] -= take; remaining -= take;
-                    if (inv[item.idx] === 0) avg[item.idx] = 0;
-                    if (take > 0) seized.push(take + " " + ITEMS[item.idx].name);
-                  }
-                  return { ...p, inventory: inv, avgCost: avg, popup: null, eventMsg: seizeCount > 0 ? "Interpol seized: " + seized.join(", ") + "." : "Detained and released. No cargo to seize.", eventType: "bad" };
-                }) },
-              ].filter(Boolean)) };
+            popup: mkPopup("CID INVESTIGATION", null, msg, [
+              canBribe ? makeBackhanderAction(bribe, 5) : null,
+              seizeCount > 0 ? makeSeizeAction(seizeCount) : null,
+              shiftyBtn,
+              runBtn,
+              dumpBtn,
+              surrenderBtn,
+            ].filter(Boolean)) };
         }
+
+        // ——— ARMED RESPONSE (heat 65-85) ———
         if (alert < 85) {
           const cargoVal = prev.inventory.reduce((sum, qty, i) => sum + qty * prev.prices[i], 0);
-          const bribe = cargoVal > 0 ? Math.max(10000, Math.floor(cargoVal * 0.35)) : Math.max(10000, Math.floor(prev.cash * 0.50));
+          const bribe = cargoVal > 0 ? Math.max(5000, Math.floor(cargoVal * 0.35)) : Math.max(5000, Math.floor(prev.cash * 0.50));
           const canBribe = prev.cash >= bribe;
           const seizePct = 0.4 + Math.random() * 0.2;
-          const seizeCount = Math.ceil(totalInventory(prev.inventory) * seizePct);
+          const seizeCount = Math.ceil(totalInv * seizePct);
           const msg = pickNew(POLICE_HIGH_MSGS, prev.lastMessageShown);
           return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
             eventMsg: "Police. Armed response.", eventType: "bad",
-            popup: mkPopup("POLICE — ARMED RESPONSE", null, msg + "\n\nPay £" + bribe.toLocaleString() + (seizeCount > 0 ? " or face seizure of " + seizeCount + " units (highest value first)" : "") + ". Refusal risks arrest.",
-              [
-                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 10),
-                  eventMsg: "Backhander paid. £" + bribe.toLocaleString() + ". You escaped.", eventType: "bad" })) } : null,
-                { label: seizeCount > 0 ? "Accept Seizure" : "Comply", action: () => setGs(p => {
-                  const sorted = p.inventory.map((qty, i) => ({ idx: i, qty, price: p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.price - a.price);
-                  const inv = [...p.inventory]; const avg = [...p.avgCost];
-                  let remaining = seizeCount; const seized = [];
-                  for (const item of sorted) {
-                    if (remaining <= 0) break;
-                    const take = Math.min(inv[item.idx], remaining);
-                    inv[item.idx] -= take; remaining -= take;
-                    if (inv[item.idx] === 0) avg[item.idx] = 0;
-                    if (take > 0) seized.push(take + " " + ITEMS[item.idx].name);
-                  }
-                  return { ...p, inventory: inv, avgCost: avg, popup: null, eventMsg: seizeCount > 0 ? "Interpol seized: " + seized.join(", ") + "." : "Detained and released. No cargo to seize.", eventType: "bad" };
-                }) },
-              ].filter(Boolean)) };
+            popup: mkPopup("ARMED RESPONSE", null, msg, [
+              canBribe ? makeBackhanderAction(bribe, 10) : null,
+              seizeCount > 0 ? makeSeizeAction(seizeCount) : null,
+              shiftyBtn,
+              runBtn,
+              dumpBtn,
+              surrenderBtn,
+            ].filter(Boolean)) };
         }
-        // Critical alert (85+)
+
+        // ——— FULL OPERATION (heat 85+) ———
         const cargoVal = prev.inventory.reduce((sum, qty, i) => sum + qty * prev.prices[i], 0);
-        const bribe = cargoVal > 0 ? Math.max(25000, Math.floor(cargoVal * 0.50)) : Math.max(25000, Math.floor(prev.cash * 0.70));
+        const bribe = cargoVal > 0 ? Math.max(10000, Math.floor(cargoVal * 0.50)) : Math.max(10000, Math.floor(prev.cash * 0.70));
         const canBribe = prev.cash >= bribe;
-        if (!canBribe) {
+        if (!canBribe && !shiftyBtn) {
           SFX.arrested();
           return { ...prev, phase: "nicked", encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
             eventMsg: "Nicked.", eventType: "bad" };
         }
         const msg = pickNew(POLICE_HIGH_MSGS, prev.lastMessageShown);
         return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
-          eventMsg: "Police. Armed response.", eventType: "bad",
-          popup: mkPopup("POLICE — ARMED RESPONSE", null, msg + "\n\nPay £" + bribe.toLocaleString() + " or face immediate arrest.",
-            [
-              { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 15),
-                eventMsg: "Massive backhander. £" + bribe.toLocaleString() + ". You escaped arrest.", eventType: "bad" })) },
-              { label: "Cannot Pay", action: () => { SFX.arrested(); setGs(p => ({ ...p, phase: "nicked", popup: null })); } },
-            ]) };
+          eventMsg: "Police. Full operation.", eventType: "bad",
+          popup: mkPopup("FULL OPERATION", null, msg + "\n\nThis is it. Pay or get nicked.", [
+            canBribe ? makeBackhanderAction(bribe, 15) : null,
+            shiftyBtn,
+            { label: "Cannot Pay", action: () => { SFX.arrested(); setGs(p => ({ ...p, phase: "nicked", popup: null })); } },
+          ].filter(Boolean)) };
       }
 
       // === UNDERCOVER ===
