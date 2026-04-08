@@ -355,11 +355,11 @@ const MILITIA_MSGS = [
   "Big man pulls you aside. 'You wanna sell here? £{fee}. Non-negotiable.'",
   "Word from the top of the estate. '£{fee} to keep working. Don't make this difficult.'",
 ];
-const KILLED_MSGS = [
-  " was found dead in {location}. No one claimed the body.",
-  " was killed during a confrontation in {location}. The details were never reported.",
-  " disappeared in {location}. A body matching the description was found three days later.",
-  " was shot outside a warehouse in {location}. The investigation was closed within hours.",
+const HOSPITALISED_MSGS = [
+  " was admitted to A&E in {location}. Broken ribs, fractured jaw. The streets won.",
+  " collapsed outside a chicken shop in {location}. Someone eventually called an ambulance.",
+  " limped into {location} hospital at 3am. Couldn't even give a fake name properly.",
+  " woke up in a hospital bed in {location} with no phone, no cash, and a drip in their arm.",
 ];
 const CREDITOR_PROTECTION_MSGS = {
   greezy: {
@@ -606,7 +606,7 @@ function getInitialState() {
     blockedLocations: {},
     popup: null, qtyPopup: null,
     travelPopup: false, travelBorough: null,
-    passportCooldown: 0, portOfficialCooldown: 0, counterSurvCooldown: 0, disappearUsesLeft: 3, disappearCooldown: 0,
+    disappearUsesLeft: 3, disappearCooldown: 0, newSimUsed: false, nurseCooldown: 0,
     shopPopup: false, servicesPopup: false, priceHistoryPopup: false,
     debtPopup: false, eventMsg: null, eventType: "neutral",
     eventFades: false, eventFaded: false,
@@ -635,9 +635,6 @@ function dayMsg(day) {
 function GreyMarket() {
   const [gs, setGs] = useState(getInitialState);
   const [qtyInput, setQtyInput] = useState("");
-  const [passportPopup, setPassportPopup] = useState(null); // { cost, alertDrop, cooldown, field }
-  const [newAliasInput, setNewAliasInput] = useState("");
-  const [newAliasError, setNewAliasError] = useState("");
   const [qtyError, setQtyError] = useState("");
   const [debtAmt, setDebtAmt] = useState("");
   const [nameError, setNameError] = useState("");
@@ -692,7 +689,7 @@ function GreyMarket() {
     setGs(p => {
       const d = { ...p.disclosed };
       let changed = false;
-      if (!d.services && p.day >= 4) { d.services = true; changed = true; }
+      if (!d.services && ((p.heat > 15 && !p.newSimUsed) || p.health < 100)) { d.services = true; changed = true; }
       if (!d.shop && p.cash >= 15000) { d.shop = true; changed = true; }
       if (!d.priceHistory && p.day > 1) { d.priceHistory = true; changed = true; }
       if (!d.cashOut && (p.debt <= 0 || p.day >= MAX_DAYS)) { d.cashOut = true; changed = true; }
@@ -709,7 +706,7 @@ function GreyMarket() {
 
   useEffect(() => {
     if (gs.phase !== "playing" || gs.health > 0) return;
-    setGs(p => ({ ...p, phase: "killed" }));
+    setGs(p => ({ ...p, phase: "hospitalised" }));
   }, [gs.health, gs.phase]);
 
   const dismissPopup = useCallback(() => setGs((p) => ({ ...p, popup: null })), []);
@@ -1456,10 +1453,7 @@ function GreyMarket() {
         blockedLocations: newBlocked,
         activeTip: null, pendingNews: null, tradeMsg: null,
         popup: null, travelPopup: false, travelBorough: null,
-        passportCooldown: Math.max(0, prev.passportCooldown - daysCost),
-        portOfficialCooldown: Math.max(0, prev.portOfficialCooldown - daysCost),
-        counterSurvCooldown: Math.max(0, prev.counterSurvCooldown - daysCost),
-        medicalCooldown: Math.max(0, prev.medicalCooldown - daysCost),
+        nurseCooldown: Math.max(0, prev.nurseCooldown - daysCost),
         disappearCooldown: Math.max(0, prev.disappearCooldown - daysCost),
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - daysCost),
         jamalGhost: Math.max(0, prev.jamalGhost - daysCost),
@@ -1495,10 +1489,7 @@ function GreyMarket() {
         prevPrices: prev.prices, prices: newPrices, itemAvail: newAvail,
         priceHistory: [...prev.priceHistory.slice(-5), histEntry],
         blockedLocations: newBlocked,
-        passportCooldown: Math.max(0, prev.passportCooldown - 1),
-        portOfficialCooldown: Math.max(0, prev.portOfficialCooldown - 1),
-        counterSurvCooldown: Math.max(0, prev.counterSurvCooldown - 1),
-        medicalCooldown: Math.max(0, prev.medicalCooldown - 1),
+        nurseCooldown: Math.max(0, prev.nurseCooldown - 1),
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - 1),
         jamalGhost: Math.max(0, prev.jamalGhost - 1),
         tradeMsg: null, popup: null,
@@ -1762,12 +1753,12 @@ function GreyMarket() {
             <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.accent, marginBottom: 10 }}>THE DEAL</div>
             <div style={{ fontFamily: sansFont, fontSize: 12, color: T.textDim }}>
               {[
-                "You're a dealer on the streets of London. Nobody knows your real name. Keep it that way.",
-                "30 days. That's all you get.",
-                "Buy where it's cheap. Sell where it's not.",
-                "People will talk. Ignore the wrong tip and it costs you everything.",
-                "Feds, gangs, loan sharks — they're all watching. Every trade generates heat.",
-                "Let your heat hit maximum and there is no second chance.",
+                "You're on road now. 30 days to make as much P's as possible.",
+                "Buy where it's cheap. Sell where prices are peak.",
+                "Move smart. Stay too long in one ends and people notice.",
+                "Tips come through. Act on the right ones and you'll eat. Ignore them and you're done.",
+                "Feds, opps, snitches — everyone's watching. Keep your heat low.",
+                "Get nicked or end up in hospital and it's game over. Simple.",
               ].map((r, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, padding: "4px 0", alignItems: "baseline" }}>
                   <span style={{ color: T.accent, fontSize: 8, lineHeight: "18px" }}>■</span><span>{r}</span>
@@ -1830,10 +1821,10 @@ function GreyMarket() {
     const showConfirmPopup = (idx) => {
       const c = CREDITORS[idx];
       setGs(p => ({ ...p, selectedCreditor: idx, popup: mkPopup("LAST CHANCE", null,
-        "You're set up. Street name's clean. Time to move.\n\nStarting capital: £" + (2000 + Math.floor(c.debt * 0.5)).toLocaleString() + ". You owe £" + c.debt.toLocaleString() + ". The rest is yours to work with.\n\n" + c.introMsg + "\n\nYou have 30 days.",
+        "You've got your P's. Your street name's clean. Your first re-up is waiting.\n\nStarting capital: £" + (2000 + Math.floor(c.debt * 0.5)).toLocaleString() + ". You owe £" + c.debt.toLocaleString() + ".\n\n" + c.introMsg + "\n\nYou have 30 days.",
         [
-          { label: "Abort", primary: false, action: "dismiss" },
-          { label: "Begin", primary: true, action: () => { SFX.begin(); startGame(p.playerName, idx); } },
+          { label: "Nah", primary: false, action: "dismiss" },
+          { label: "Let's Go", primary: true, action: () => { SFX.begin(); startGame(p.playerName, idx); } },
         ]) }));
     };
 
@@ -2077,14 +2068,14 @@ function GreyMarket() {
     );
   }
 
-  // ——— KILLED ———
-  if (gs.phase === "killed") {
-    const deathMsg = gs.playerName + pick(KILLED_MSGS).replace(/{location}/g, BOROUGHS[gs.borough].locations[gs.location]);
+  // ——— HOSPITALISED ———
+  if (gs.phase === "hospitalised") {
+    const deathMsg = gs.playerName + pick(HOSPITALISED_MSGS).replace(/{location}/g, BOROUGHS[gs.borough].locations[gs.location]);
     return (
       <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px", textAlign: "center" }}>
           <div style={{ fontFamily: font, fontSize: 11, letterSpacing: 3, color: T.red, textTransform: "uppercase", marginBottom: 8 }}>It's over.</div>
-          <div style={{ fontFamily: font, fontSize: 24, fontWeight: 800, color: T.red, marginBottom: 8 }}>KILLED</div>
+          <div style={{ fontFamily: font, fontSize: 24, fontWeight: 800, color: T.red, marginBottom: 8 }}>HOSPITALISED</div>
           <div style={{ fontSize: 13, color: T.textDim, marginBottom: 24 }}>{deathMsg}</div>
           <div style={{ ...panelStyle, padding: 12, marginBottom: 20, textAlign: "left" }}>
             <div style={{ fontFamily: font, fontSize: 13, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -2094,6 +2085,17 @@ function GreyMarket() {
               <span style={{ color: T.textDim }}>Trades: <span style={{ color: T.text }}>{gs.tradeCount}</span></span>
             </div>
           </div>
+          {leaderboard.length > 0 && (
+            <div style={{ marginBottom: 20, textAlign: "left" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Leaderboard</div>
+              {leaderboard.slice(0, 10).map((s, i) => (
+                <div key={i} style={{ fontFamily: font, fontSize: 12, display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid " + T.border }}>
+                  <span><span style={{ color: T.accent, marginRight: 8 }}>#{i + 1}</span><span style={{ color: T.text }}>{s.name}</span></span>
+                  <span style={{ color: s.score >= 0 ? T.green : T.red }}>£{s.score.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <button style={{ ...btnStyle(true), width: "100%", padding: 10 }} onClick={() => { const s = getInitialState(); setGs({ ...s, phase: "title" }); }}>New Game</button>
         </div>
       </div>
@@ -2104,45 +2106,42 @@ function GreyMarket() {
   if (gs.phase === "gameover") {
     const w = netWorth(gs);
     const rank = leaderboard.findIndex(s => s.name === gs.playerName) + 1;
+    const tierLabel = w >= 100000 ? "Untouchable" : w >= 50000 ? "Top boy" : w >= 20000 ? "Solid" : w >= 0 ? "Survived" : "Broke";
     const earlyExit = gs.cashedOut && gs.day < MAX_DAYS;
     const headerText = earlyExit ? "WALKED AWAY" : "FINAL BALANCE";
     const summaryText = (earlyExit
-      ? (w >= 500000 ? pick([
-          "You knew when to stop. The money is real. The exit is clean. Most people in this trade don't get to choose when it ends — it gets chosen for them.\n\nYou'll never know how much more you could have made. That's the price of walking away. It's cheaper than the alternative.",
-          "You walked away from the table with money in your pocket and your freedom intact. The best deals are the ones you walk away from. Every broker knows that. Almost none of them do it.",
-        ]) : w >= 200000 ? pick([
-          "You left money on the table. You know that. But you also left with your freedom and your health. The players still at the table will either make a fortune or lose everything.\n\nYou'll never know which. And that's fine.",
-          "You got out. Not at the top — but before the fall. There's a version of this story where you stayed three more days and tripled your money. There's another version where you stayed and never came home.",
+      ? (w >= 50000 ? pick([
+          "You knew when to stop. Most don't. That's why most end up nicked or hospitalised.",
+          "You walked away with £" + w.toLocaleString() + ". The smart ones always do.",
+        ]) : w >= 20000 ? pick([
+          "You left money on the table. But you also left with your freedom and your health.",
+          "You got out. Not at the top — but before the fall.",
         ]) : pick([
-          "You played it safe and left with what you had. Nobody will write stories about you. But nobody will write warrants either.\n\nThe money is modest. The freedom is absolute. You'll have to decide which one matters more — eventually.",
-          "You got out early with barely enough to show for it. The smart play? Maybe. Or maybe you just lost your nerve.\n\nEither way, you're alive and free. That's more than some can say.",
+          "You played it safe and left with what you had. Nobody will write stories about you. Or warrants.",
+          "You got out early with barely enough to show for it. Alive and free. That's worth something.",
         ]))
-      : w >= 1000000 ? pick([
-          "You made more money in 30 days than most people see in a lifetime. You'll never talk about how. You'll never need to work again. But you'll never sleep the same way either.\n\nThe accounts are scattered across jurisdictions that don't talk to each other. The money will outlast your conscience.\n\nYou wonder what would have happened with a different creditor. A different route. A different version of you.",
-          "{networth}. Enough to disappear three times over. You have a new name, a new passport, and a house on a coast you've never visited. Nobody will find you. That's the idea.\n\nYou are now the kind of person other people borrow money from. Think about that.\n\nSomewhere, another broker is starting day one with borrowed money and a dangerous name in their phone. You remember that feeling.",
-          "{networth} in 30 days. The money is clean now — laundered through six jurisdictions under names that don't exist. You'll never talk about how you made it.\n\nBut late at night, you'll think about the places your inventory ended up. The conflicts that burned a little brighter because of you.\n\nThe game is over. But the market is still open. It always is.",
-        ])
-      : w >= 500000 ? pick([
-          "Half a million. Enough to disappear comfortably. You close your laptop, destroy your phone, and book a one-way ticket. The destination doesn't matter. Not coming back does.\n\nThe profit is real. So is the list of people who know your street name. You'll be looking at unfamiliar faces differently for a long time.\n\nAnother week and you'd have crossed seven figures. You'll think about that.",
-          "You walked away rich. Not wealthy — rich. The difference is that wealthy people don't check over their shoulder at airports.\n\n{networth} buys a lot of distance between you and the people who remember your name.\n\nClose to the top. Not quite there. That gap will keep you up at night.",
-          "{networth}. You'll live well. Not lavishly — lavish attracts attention. But well. A quiet life funded by the loudest business on earth. The irony isn't lost on you.\n\nYou played well. But you know you left money on the table. That never stops itching.",
-        ])
-      : w >= 200000 ? pick([
-          "A solid run. Enough to start over somewhere quiet. You'll always wonder what would have happened if you'd stayed in for one more day.\n\nProfitable. Professional. You got in, made your money, and got out before the walls closed in. That's more than most can say.",
-          "You came out ahead. Not everyone does. The ones who didn't are either in prison or in the ground. You're having coffee in an airport lounge. Perspective.\n\nThe money won't last forever. But the lessons will.",
+      : w >= 100000 ? pick([
+          "You made more P's in 30 days than most people see in a lifetime. New phone, new ends, new everything.",
+          "£" + w.toLocaleString() + ". Enough to disappear. New name, new postcode. Nobody on the estate will see you again.",
+          "£" + w.toLocaleString() + " in 30 days. The money's clean now. Laundered through three bookies and a car wash. You're out.",
         ])
       : w >= 50000 ? pick([
-          "You survived. The money isn't life-changing, but it's yours and you're free. Some people in this business don't get either.\n\nModest returns. You played it safe — and safe kept you alive. Whether that was smart or cowardly depends on who's asking.",
-          "You broke even with the universe. No fortune, no prison cell. You can walk down any street in the world without looking behind you. That's worth something.\n\nThe experience is yours. The scars are yours. The money barely covers the cost of both.",
+          "Solid run. You came out ahead and you're still walking. Not everyone can say that.",
+          "£" + w.toLocaleString() + ". Enough to sort yourself out. Maybe even go legit. Maybe.",
+          "£" + w.toLocaleString() + ". Not rich. But richer than everyone who got nicked or hospitalised trying.",
+        ])
+      : w >= 20000 ? pick([
+          "You survived. Made a bit of bread. Nothing to write home about but you're free.",
+          "30 days of stress for £" + w.toLocaleString() + ". Was it worth it? Only you know.",
         ])
       : w >= 0 ? pick([
-          "You barely made it out. The money in your pocket won't last long. But you're breathing, you're free, and nobody's looking for you. Today, that's enough.\n\nTomorrow you'll have to figure out what comes next. But tomorrow is a luxury not everyone in this trade gets.",
-          "Thirty days of risk for almost nothing. The smart play would have been to never start. But you did. And here you are.\n\nYou walked away with pocket change and a lifetime of stories you can never tell anyone.",
+          "You barely made it out. Pocket change and bad memories.",
+          "30 days on the roads for almost nothing. At least you're not in hospital. Or jail.",
         ])
       : pick([
-          "You owe more than you made. The debt follows you. The people you worked with remember your name. Retirement isn't an option — you'll need to go back in.\n\nSomewhere, your creditor is calculating how long before they send someone. The clock is already running.",
-          "Net loss. Thirty days, and you're worse off than when you started. The money you borrowed is still owed. The interest is still accruing.\n\nYou lost money dealing drugs. That takes a special kind of bad luck — or bad judgment. Either way, this isn't over for you.",
-        ])).replace(/{networth}/g, "£" + Math.abs(w).toLocaleString());
+          "You owe more than you made. The streets won.",
+          "Negative. You managed to lose money selling drugs. That takes a special kind of talent.",
+        ]));
     return (
       <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px", textAlign: "center" }}>
@@ -2157,7 +2156,7 @@ function GreyMarket() {
               <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
               <span style={{ color: T.textDim }}>Debt: <span style={{ color: gs.debt > 0 ? T.red : T.green }}>£{gs.debt.toLocaleString()}</span></span>
               <span style={{ color: T.textDim }}>Creditor: <span style={{ color: T.text }}>{gs.creditor ? gs.creditor.name : "None"}</span></span>
-              <span style={{ color: T.textDim }}>Rank: <span style={{ color: T.accent }}>#{rank || "—"}</span></span>
+              <span style={{ color: T.textDim }}>Rank: <span style={{ color: T.accent }}>{tierLabel}{rank ? " (#" + rank + ")" : ""}</span></span>
             </div>
             <div style={{ borderTop: "1px solid " + T.border, marginTop: 8, paddingTop: 8, fontFamily: font, fontSize: 11, color: T.textDim }}>
               {"Trades: " + gs.tradeCount + " · Police: " + gs.encounterStats.police + " · Mugging: " + gs.encounterStats.mugging + " · Rivals: " + gs.encounterStats.rivals}
@@ -2247,89 +2246,60 @@ function GreyMarket() {
       {/* SERVICES POPUP */}
       {gs.servicesPopup && (
         <Overlay onClose={() => setGs(p => ({ ...p, servicesPopup: false }))}>
-          <ModalBox title="SERVICES" width={420}>
+          <ModalBox title="SERVICES" width={380}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { name: "Clean Passport", cost: Math.max(10000, Math.floor(netWorth(gs) * 0.03)), alertDrop: 20, cooldown: 5, field: "passportCooldown", flavour: "Burn your current street name. New documents, new identity.", successMsg: "New identity acquired. Heat reduced.", isPassport: true },
-                { name: "Port Official", cost: Math.max(5000, Math.floor(netWorth(gs) * 0.015)), alertDrop: 10, cooldown: 3, field: "portOfficialCooldown", flavour: "Pay a customs contact to lose your paperwork.", successMsg: "Port official paid. Paperwork erased." },
-                { name: "Counter-Surveillance", cost: Math.max(15000, Math.floor(netWorth(gs) * 0.05)), alertDrop: 30, cooldown: 8, field: "counterSurvCooldown", flavour: "Hire professionals to scrub your digital footprint.", successMsg: "Counter-surveillance deployed. Digital footprint scrubbed." },
-                ...(gs.health < 100 ? [{ name: "Medical Contact", cost: Math.max(5000, Math.floor(gs.cash * 0.15)), alertDrop: 0, cooldown: 3, field: "medicalCooldown", flavour: "Off-the-books medical care. No questions, no records.", successMsg: "Medical treatment received. Health restored.", isHealth: true }] : []),
-              ].map((svc) => {
-                const cd = gs[svc.field];
-                const canAfford = gs.cash >= svc.cost;
-                const available = cd <= 0;
-                return (
-                  <div key={svc.name} style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{svc.name}</div>
-                        <div style={{ fontFamily: font, fontSize: 10, color: T.textDim, marginTop: 2 }}>{svc.flavour}</div>
-                        {svc.isHealth ? (
-                          <div style={{ fontFamily: font, fontSize: 10, color: T.green, marginTop: 2 }}>Health +30%</div>
-                        ) : (
-                          <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginTop: 2 }}>{"Heat " + String.fromCharCode(8722) + svc.alertDrop + "%"}</div>
-                        )}
-                      </div>
-                      {!available ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, whiteSpace: "nowrap" }}>{"Available in " + cd + " days"}</span>
-                      ) : (
-                        <button style={{ ...btnStyle(canAfford), opacity: canAfford ? 1 : 0.4, whiteSpace: "nowrap" }}
-                          onClick={() => {
-                            if (canAfford) {
-                              if (svc.isPassport) {
-                                setGs(p => ({ ...p, servicesPopup: false }));
-                                setPassportPopup({ cost: svc.cost, alertDrop: svc.alertDrop, cooldown: svc.cooldown, field: svc.field });
-                                setNewAliasInput(""); setNewAliasError("");
-                              } else if (svc.isHealth) {
-                                setGs(p => ({ ...p, cash: p.cash - svc.cost, health: Math.min(100, p.health + 30), [svc.field]: svc.cooldown,
-                                  eventMsg: svc.successMsg, eventType: "good" }));
-                              } else {
-                                setGs(p => ({ ...p, cash: p.cash - svc.cost, heat: Math.max(0, p.heat - svc.alertDrop), [svc.field]: svc.cooldown,
-                                  eventMsg: svc.successMsg, eventType: "good" }));
-                              }
-                            } else {
-                              setGs(p => ({ ...p, eventMsg: "Insufficient funds.", eventType: "bad" }));
-                            }
-                          }}>{"£" + svc.cost.toLocaleString()}</button>
-                      )}
+              {!gs.newSimUsed && (
+                <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>📱 New SIM</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.textDim, marginTop: 2 }}>New number. Burn the old one.</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginTop: 2 }}>{"Heat " + String.fromCharCode(8722) + "20%"}</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.amber, marginTop: 2 }}>One use only</div>
                     </div>
+                    <button style={{ ...btnStyle(gs.cash >= 3000), opacity: gs.cash >= 3000 ? 1 : 0.4, whiteSpace: "nowrap" }}
+                      onClick={() => {
+                        if (gs.cash >= 3000) {
+                          setGs(p => ({ ...p, cash: p.cash - 3000, heat: Math.max(0, p.heat - 20), newSimUsed: true, servicesPopup: false,
+                            eventMsg: "New number. New you. For now.", eventType: "good" }));
+                        }
+                      }}>£3,000</button>
                   </div>
-                );
-              })}
+                </div>
+              )}
+              {gs.health < 100 && (
+                <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>🏥 The Nurse</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.textDim, marginTop: 2 }}>Ellie. Off the books. No questions.</div>
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.green, marginTop: 2 }}>Health +30%</div>
+                      {gs.nurseCooldown > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber, marginTop: 2 }}>{"Available in " + gs.nurseCooldown + " days"}</div>}
+                    </div>
+                    {gs.nurseCooldown > 0 ? (
+                      <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, whiteSpace: "nowrap" }}>{"Cooldown: " + gs.nurseCooldown}</span>
+                    ) : (() => {
+                      const nurseCost = Math.max(500, Math.floor(gs.cash * 0.15));
+                      return (
+                        <button style={{ ...btnStyle(gs.cash >= nurseCost), opacity: gs.cash >= nurseCost ? 1 : 0.4, whiteSpace: "nowrap" }}
+                          onClick={() => {
+                            if (gs.cash >= nurseCost) {
+                              const msgs = ["Ellie meets you round the back of the ward. Twenty minutes, no paperwork. You'll live.", "Ellie says this is the third time this month. The price just went up.", "Ellie patches you up between shifts. Says if you come back looking like this again she's done."];
+                              setGs(p => ({ ...p, cash: p.cash - nurseCost, health: Math.min(100, p.health + 30), nurseCooldown: 3, servicesPopup: false,
+                                eventMsg: pick(msgs), eventType: "good" }));
+                            }
+                          }}>{"£" + nurseCost.toLocaleString()}</button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+              {gs.newSimUsed && gs.health >= 100 && (
+                <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted, textAlign: "center", padding: 16 }}>No services available right now.</div>
+              )}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button style={btnStyle(false)} onClick={() => setGs(p => ({ ...p, servicesPopup: false }))}>Close</button>
-            </div>
-          </ModalBox>
-        </Overlay>
-      )}
-      {/* PASSPORT ALIAS POPUP */}
-      {passportPopup && (
-        <Overlay onClose={() => setPassportPopup(null)}>
-          <ModalBox title="NEW IDENTITY" width={380}>
-            <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 12, lineHeight: 1.6 }}>
-              Your old street name is burned. Enter a new one. You cannot reuse your current name.
-            </div>
-            <input type="text" value={newAliasInput} autoFocus
-              onChange={e => { setNewAliasInput(e.target.value.slice(0, 20)); setNewAliasError(""); }}
-              onKeyDown={e => { if (e.key === "Enter") e.preventDefault(); }}
-              placeholder="Enter new street name..." maxLength={20}
-              autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
-              style={{ ...inputSt, marginBottom: 8, borderColor: newAliasError ? T.red : T.border }} />
-            {newAliasError && <div style={{ fontFamily: font, fontSize: 11, color: T.red, marginBottom: 8 }}>{newAliasError}</div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button style={btnStyle(false)} onClick={() => setPassportPopup(null)}>Cancel</button>
-              <button style={btnStyle(true)} onClick={() => {
-                const clean = sanitiseName(newAliasInput).trim();
-                if (!clean) { setNewAliasError("Enter a street name."); return; }
-                if (clean.toLowerCase() === gs.playerName.toLowerCase()) { setNewAliasError("You cannot reuse your current street name."); return; }
-                if (containsProfanity(clean)) { setNewAliasError("That street name is not permitted."); return; }
-                const pp = passportPopup;
-                setPassportPopup(null); setNewAliasInput(""); setNewAliasError("");
-                setGs(p => ({ ...p, playerName: clean, cash: p.cash - pp.cost, heat: Math.max(0, p.heat - pp.alertDrop),
-                  [pp.field]: pp.cooldown, servicesPopup: false,
-                  eventMsg: "New identity acquired. You are now " + clean + ". Heat reduced.", eventType: "good" }));
-              }}>CONFIRM</button>
             </div>
           </ModalBox>
         </Overlay>
@@ -2698,7 +2668,7 @@ function GreyMarket() {
                   {gs.debt <= 0 ? "CLEARED" : gs.creditor ? gs.creditor.name : "Debt"}
                 </button>
                 {/* Services — day >= 4 */}
-                {d.services && (() => { markGlow("services"); return (
+                {d.services && ((gs.heat > 15 && !gs.newSimUsed) || gs.health < 100) && (() => { markGlow("services"); return (
                   <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("services") }} disabled={lastDay}
                     onClick={() => { if (!lastDay) setGs(p => ({ ...p, servicesPopup: true })); }}>Services</button>
                 ); })()}
@@ -2732,7 +2702,7 @@ function GreyMarket() {
                     : <button style={{ ...btnStyle(true, T.red), ...bSize, ...glow("cashOut") }} onClick={() => {
                         const daysLeft = MAX_DAYS - gs.day;
                         setGs(p => ({ ...p, popup: mkPopup("CASH OUT", null,
-                          "Walk away with what you have? You still have " + daysLeft + " days left. Every day is potential profit — or potential arrest.",
+                          "Walk away with what you have? You still have " + daysLeft + " days left. Every day is potential profit — or potential drama.",
                           [
                             { label: "Cash Out", primary: false, action: () => { setGs(p2 => ({ ...p2, cashedOut: true })); endGame(); } },
                             { label: "Stay", primary: true, action: "dismiss" },
