@@ -379,7 +379,7 @@ const MI6_MSGS = [
   "An envelope at your hotel reception. Inside: a printed summary of your last five trades. A business card with a UK mobile number and the words 'We need to talk.'\n\n{ciaOffer}",
 ];
 const CIA_REFUSAL_MSGS = [
-  "You refuse. The American doesn't argue. He makes a single phone call as he walks away. Your alert level just became their priority.",
+  "You refuse. The American doesn't argue. He makes a single phone call as he walks away. Your heat level just became their priority.",
   "You decline. The woman nods once, closes her folder, and leaves. Within the hour, your shipping manifests appear on an Interpol analyst's desk.",
   "You say no. They expected that. The intelligence was already packaged for Interpol before they approached you. This was a courtesy. Now it's a consequence.",
 ];
@@ -605,7 +605,7 @@ function spikeMultiplier(basePrice, type) {
 }
 
 function rollEvent(gs) {
-  const alertScale = gs.alertLevel / 100;
+  const heatScale = gs.heat / 100;
   const cargoValue = gs.inventory.reduce((sum, qty, i) => sum + qty * gs.prices[i], 0);
   const cargoFactor = Math.min(0.15, cargoValue / 500000);
   const totalInv = gs.inventory.reduce((a, b) => a + b, 0);
@@ -614,8 +614,8 @@ function rollEvent(gs) {
   const policeBonus = gs.jamalActive ? 0.08 : 0;
   const muggingBonus = (gs.shiftyBought ? 0.08 : 0) + (gs.jacketLevel >= 2 ? 0.08 : gs.jacketLevel >= 1 ? 0.05 : 0);
   const nothing = 0.15;
-  const interpol = gs.alertLevel > 10 ? 0.05 + alertScale * 0.25 + cargoFactor + policeBonus : 0;
-  const cia = 0.06 + alertScale * 0.15 + boroughRisk * 0.2;
+  const interpol = gs.heat > 10 ? 0.05 + heatScale * 0.25 + cargoFactor + policeBonus : 0;
+  const cia = 0.06 + heatScale * 0.15 + boroughRisk * 0.2;
   const rivals = totalInv > 0 ? 0.06 + (gs.turnsInBorough > 3 ? 0.06 : 0) + muggingBonus : 0;
   const militia = 0.06 + boroughRisk * 0.2;
   const wireSurge = 0.10;
@@ -664,8 +664,8 @@ function getInitialState() {
     inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0),
     prices, prevPrices: prices, itemAvail,
     priceHistory: [],
-    alertLevel: 0,
-    encounterStats: { interpol: 0, cia: 0, rivals: 0, militia: 0 },
+    heat: 0,
+    encounterStats: { police: 0, cia: 0, rivals: 0, militia: 0 },
     tradeCount: 0, turnsInBorough: 0,
     blockedLocations: {},
     popup: null, qtyPopup: null,
@@ -712,7 +712,7 @@ function GreyMarket() {
     return () => window.removeEventListener("resize", h);
   }, []);
   const isMobile = winWidth < 600;
-  const [career, setCareer] = useState({ games: 0, totalEarnings: 0, bestScore: 0, totalTrades: 0, totalInterpol: 0 });
+  const [career, setCareer] = useState({ games: 0, totalEarnings: 0, bestScore: 0, totalTrades: 0, totalPolice: 0 });
   const [leaderboard, setLeaderboard] = useState([]);
 
   useEffect(() => {
@@ -962,7 +962,7 @@ function GreyMarket() {
   const dispatchEvent = useCallback((eventType) => {
     setGs((prev) => {
       if (prev.popup) return prev;
-      const alert = prev.alertLevel;
+      const alert = prev.heat;
 
       // === NOTHING ===
       if (eventType === "nothing") return prev;
@@ -977,17 +977,17 @@ function GreyMarket() {
           const shiftyGone = usesLeft === 0 && prev.shiftyTier >= 3;
           const needsReup = usesLeft === 0 && prev.shiftyTier < 3;
           const statusMsg = shiftyGone ? " Shifty's gone. Used up all his favours." : needsReup ? " Shifty needs re-upping. Visit the Shop." : " " + usesLeft + " uses remaining.";
-          return { ...prev, shiftyUses: usesLeft, shiftyCooldown: newCooldown, alertLevel: Math.max(0, prev.alertLevel - 5),
-            encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
+          return { ...prev, shiftyUses: usesLeft, shiftyCooldown: newCooldown, heat: Math.max(0, prev.heat - 5),
+            encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
             eventMsg: "You mentioned Shifty. Officers backed off." + statusMsg, eventType: "good",
             popup: mkPopup("PC SHIFTY", null, "You drop Shifty's name. The officers exchange a look, nod, and wave you through.\n\nHeat: -5%." + statusMsg,
               [{ label: "Walk", action: "dismiss" }]) };
         }
         if (alert < 35) {
           const msg = pickNew(INTERPOL_LOW_MSGS, prev.lastMessageShown);
-          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
-            eventMsg: "Interpol. Detained for questioning.", eventType: "bad",
-            popup: mkPopup("INTERPOL", null, msg + "\n\nYou are detained for the remainder of the day. No further action.",
+          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+            eventMsg: "Police. Stop and search.", eventType: "bad",
+            popup: mkPopup("POLICE", null, msg + "\n\nYou are detained for the remainder of the day. No further action.",
               [{ label: "Comply", action: "dismiss" }]) };
         }
         if (alert < 65) {
@@ -997,12 +997,12 @@ function GreyMarket() {
           const seizePct = 0.3 + Math.random() * 0.2;
           const seizeCount = Math.ceil(totalInventory(prev.inventory) * seizePct);
           const msg = pickNew(INTERPOL_MED_MSGS, prev.lastMessageShown);
-          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
-            eventMsg: "Interpol inspection.", eventType: "bad",
-            popup: mkPopup("INTERPOL", null, msg + "\n\n" + (seizeCount > 0 ? "They will seize approximately " + seizeCount + " units (highest value first). Or you can pay" : "You can pay") + " a facilitation fee of £" + bribe.toLocaleString() + ".",
+          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+            eventMsg: "Police. CID investigation.", eventType: "bad",
+            popup: mkPopup("POLICE", null, msg + "\n\n" + (seizeCount > 0 ? "They will seize approximately " + seizeCount + " units (highest value first). Or you can pay" : "You can pay") + " a backhander of £" + bribe.toLocaleString() + ".",
               [
-                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, alertLevel: Math.max(0, p.alertLevel - 5),
-                  eventMsg: "Facilitation fee paid. £" + bribe.toLocaleString() + ". You walk.", eventType: "bad" })) } : null,
+                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 5),
+                  eventMsg: "Backhander paid. £" + bribe.toLocaleString() + ". You walk.", eventType: "bad" })) } : null,
                 { label: seizeCount > 0 ? "Accept Seizure" : "Comply", action: () => setGs(p => {
                   const sorted = p.inventory.map((qty, i) => ({ idx: i, qty, price: p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.price - a.price);
                   const inv = [...p.inventory]; const avg = [...p.avgCost];
@@ -1025,12 +1025,12 @@ function GreyMarket() {
           const seizePct = 0.4 + Math.random() * 0.2;
           const seizeCount = Math.ceil(totalInventory(prev.inventory) * seizePct);
           const msg = pickNew(INTERPOL_HIGH_MSGS, prev.lastMessageShown);
-          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
-            eventMsg: "Interpol. Arrest warrant.", eventType: "bad",
-            popup: mkPopup("INTERPOL — RED NOTICE", null, msg + "\n\nPay £" + bribe.toLocaleString() + (seizeCount > 0 ? " or face seizure of " + seizeCount + " units (highest value first)" : "") + ". Refusal risks arrest.",
+          return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+            eventMsg: "Police. Armed response.", eventType: "bad",
+            popup: mkPopup("POLICE — ARMED RESPONSE", null, msg + "\n\nPay £" + bribe.toLocaleString() + (seizeCount > 0 ? " or face seizure of " + seizeCount + " units (highest value first)" : "") + ". Refusal risks arrest.",
               [
-                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, alertLevel: Math.max(0, p.alertLevel - 10),
-                  eventMsg: "Facilitation fee paid. £" + bribe.toLocaleString() + ". You escaped.", eventType: "bad" })) } : null,
+                canBribe ? { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 10),
+                  eventMsg: "Backhander paid. £" + bribe.toLocaleString() + ". You escaped.", eventType: "bad" })) } : null,
                 { label: seizeCount > 0 ? "Accept Seizure" : "Comply", action: () => setGs(p => {
                   const sorted = p.inventory.map((qty, i) => ({ idx: i, qty, price: p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.price - a.price);
                   const inv = [...p.inventory]; const avg = [...p.avgCost];
@@ -1052,17 +1052,17 @@ function GreyMarket() {
         const canBribe = prev.cash >= bribe;
         if (!canBribe) {
           SFX.arrested();
-          return { ...prev, phase: "arrested", encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
-            eventMsg: "Arrested by Interpol.", eventType: "bad" };
+          return { ...prev, phase: "nicked", encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+            eventMsg: "Nicked.", eventType: "bad" };
         }
         const msg = pickNew(INTERPOL_HIGH_MSGS, prev.lastMessageShown);
-        return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, interpol: prev.encounterStats.interpol + 1 },
-          eventMsg: "Interpol. Arrest warrant.", eventType: "bad",
-          popup: mkPopup("INTERPOL — RED NOTICE", null, msg + "\n\nPay £" + bribe.toLocaleString() + " or face immediate arrest.",
+        return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, police: prev.encounterStats.police + 1 },
+          eventMsg: "Police. Armed response.", eventType: "bad",
+          popup: mkPopup("POLICE — ARMED RESPONSE", null, msg + "\n\nPay £" + bribe.toLocaleString() + " or face immediate arrest.",
             [
-              { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, alertLevel: Math.max(0, p.alertLevel - 15),
-                eventMsg: "Massive bribe paid. £" + bribe.toLocaleString() + ". You escaped arrest.", eventType: "bad" })) },
-              { label: "Cannot Pay", action: () => { SFX.arrested(); setGs(p => ({ ...p, phase: "arrested", popup: null })); } },
+              { label: "Pay £" + bribe.toLocaleString(), primary: true, action: () => setGs(p => ({ ...p, cash: p.cash - bribe, popup: null, heat: Math.max(0, p.heat - 15),
+                eventMsg: "Massive backhander. £" + bribe.toLocaleString() + ". You escaped arrest.", eventType: "bad" })) },
+              { label: "Cannot Pay", action: () => { SFX.arrested(); setGs(p => ({ ...p, phase: "nicked", popup: null })); } },
             ]) };
       }
 
@@ -1095,17 +1095,17 @@ function GreyMarket() {
                 let mIdx = 0; inv.forEach((q, i) => { if (q > inv[mIdx]) mIdx = i; });
                 const take = Math.ceil(inv[mIdx] * (0.3 + Math.random() * 0.1));
                 inv[mIdx] = Math.max(0, inv[mIdx] - take); if (inv[mIdx] === 0) avg[mIdx] = 0;
-                return { ...p, inventory: inv, avgCost: avg, alertLevel: Math.max(0, p.alertLevel - alertDrop), popup: null,
+                return { ...p, inventory: inv, avgCost: avg, heat: Math.max(0, p.heat - alertDrop), popup: null,
                   eventMsg: agencyName + " cooperation. " + take + " " + ITEMS[mIdx].name + " redirected. Alert reduced.", eventType: "neutral" };
               }
               const cashCost = Math.floor(p.cash * 0.15);
-              return { ...p, cash: p.cash - cashCost, alertLevel: Math.max(0, p.alertLevel - alertDrop), popup: null,
+              return { ...p, cash: p.cash - cashCost, heat: Math.max(0, p.heat - alertDrop), popup: null,
                 eventMsg: agencyName + " cooperation. £" + cashCost.toLocaleString() + " contributed. Alert reduced.", eventType: "neutral" };
             }) },
             { label: "Refuse", action: () => {
               const refMsgs = isMI6 ? MI6_REFUSAL_MSGS : CIA_REFUSAL_MSGS;
               const refMsg = pick(refMsgs);
-              setGs(p => ({ ...p, alertLevel: Math.min(100, p.alertLevel + alertGain), popup: null,
+              setGs(p => ({ ...p, heat: Math.min(100, p.heat + alertGain), popup: null,
                 eventMsg: refMsg, eventType: "bad", lastMessageShown: refMsg }));
             } },
           ]) };
@@ -1163,7 +1163,7 @@ function GreyMarket() {
                 const healthLoss = 15 + Math.floor(Math.random() * 16);
                 const alertAdd = 8 + Math.floor(Math.random() * 5);
                 const refMsg = pick(RIVAL_REFUSAL_NOCREW_MSGS);
-                return { ...p, health: Math.max(0, p.health - healthLoss), alertLevel: Math.min(100, p.alertLevel + alertAdd), popup: null,
+                return { ...p, health: Math.max(0, p.health - healthLoss), heat: Math.min(100, p.heat + alertAdd), popup: null,
                   eventMsg: refMsg + " Health: -" + healthLoss + "%.", eventType: "bad" };
               });
             } },
@@ -1208,7 +1208,7 @@ function GreyMarket() {
               const locationName = BOROUGHS[p.borough].locations[p.location];
               return { ...p, popup: null, blockedLocations: { ...p.blockedLocations, [ck]: 3 },
                 health: Math.max(0, p.health - healthLoss),
-                alertLevel: Math.min(100, p.alertLevel + alertAdd),
+                heat: Math.min(100, p.heat + alertAdd),
                 eventMsg: refusalMsg + "\n\nHealth: -" + healthLoss + "%. Blocked from " + locationName + " for 3 days.", eventType: "bad" };
             }) },
           ].filter(Boolean)) };
@@ -1400,8 +1400,10 @@ function GreyMarket() {
       const dm = dayMsg(newDay);
 
 
-      let newAlert = Math.max(0, prev.alertLevel - 2);
-      if (changedBorough) newAlert = Math.max(0, newAlert - 5);
+      let newHeat = Math.max(0, prev.heat - 2);
+      if (changedBorough) { const boroughReduction = 3 + Math.floor(Math.random() * 3); newHeat = Math.max(0, newHeat - boroughReduction); }
+      if (!changedBorough && prev.turnsInBorough >= 3) { newHeat = Math.min(100, newHeat + 3); }
+      const stagnationMsg = (!changedBorough && prev.turnsInBorough >= 3) ? " You've been here too long. People are noticing." : "";
 
       let tipMsg = null;
       if (prev.activeTip && prev.activeTip.borough === rIdx && prev.activeTip.location === cIdx) {
@@ -1441,7 +1443,7 @@ function GreyMarket() {
         debt: newDebt,
         prevPrices: prev.prices, prices: newPrices, itemAvail: newAvail,
         priceHistory: [...prev.priceHistory.slice(-5), histEntry],
-        alertLevel: newAlert, turnsInBorough: changedBorough ? 0 : prev.turnsInBorough + 1,
+        heat: newHeat, turnsInBorough: changedBorough ? 0 : prev.turnsInBorough + 1,
         blockedLocations: newBlocked,
         activeTip: null, pendingNews: null, tradeMsg: null,
         popup: null, travelPopup: false, travelBorough: null,
@@ -1452,7 +1454,7 @@ function GreyMarket() {
         disappearCooldown: Math.max(0, prev.disappearCooldown - daysCost),
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - daysCost),
         jamalGhost: Math.max(0, prev.jamalGhost - daysCost),
-        eventMsg: arrivalMsg || dm || ("Arrived in " + BOROUGHS[rIdx].locations[cIdx] + ", " + BOROUGHS[rIdx].name + "." + transitNote + debtMsg),
+        eventMsg: arrivalMsg || dm || ("Arrived in " + BOROUGHS[rIdx].locations[cIdx] + ", " + BOROUGHS[rIdx].name + "." + transitNote + debtMsg + stagnationMsg),
         eventType: arrivalMsg ? "good" : dm ? "bad" : "neutral",
         eventFades: false, eventFaded: false,
       };
@@ -1468,7 +1470,7 @@ function GreyMarket() {
       const newDay = prev.day + 1;
       if (newDay > MAX_DAYS) return { ...prev, phase: "gameover" };
       const newDebt = prev.debt > 0 ? Math.round(prev.debt * (1 + prev.debtInterest)) : 0;
-      const newAlert = Math.max(0, prev.alertLevel - 12);
+      const newHeat = Math.max(0, prev.heat - 12);
       const newPrices = generatePrices();
       const newAvail = generateAvail();
       const histEntry = { day: prev.day, borough: prev.borough, location: prev.location, prices: [...prev.prices] };
@@ -1479,7 +1481,7 @@ function GreyMarket() {
       const usesAfter = prev.disappearUsesLeft - 1;
 
       return {
-        ...prev, day: newDay, debt: newDebt, alertLevel: newAlert,
+        ...prev, day: newDay, debt: newDebt, heat: newHeat,
         disappearUsesLeft: usesAfter, disappearCooldown: 3,
         prevPrices: prev.prices, prices: newPrices, itemAvail: newAvail,
         priceHistory: [...prev.priceHistory.slice(-5), histEntry],
@@ -1491,7 +1493,7 @@ function GreyMarket() {
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - 1),
         jamalGhost: Math.max(0, prev.jamalGhost - 1),
         tradeMsg: null, popup: null,
-        eventMsg: dm || ("Disappeared. Alert level reduced." + debtMsg + " (" + usesAfter + " left)"),
+        eventMsg: dm || ("Disappeared. Heat reduced." + debtMsg + " (" + usesAfter + " left)"),
         eventType: dm ? "bad" : "neutral", eventFades: false, eventFaded: false,
       };
     });
@@ -1513,7 +1515,7 @@ function GreyMarket() {
       const oldTotal = avg[idx] * inv[idx]; inv[idx] += amt;
       avg[idx] = Math.round((oldTotal + cost) / inv[idx]);
       return { ...p, cash: p.cash - cost, inventory: inv, avgCost: avg, qtyPopup: null,
-        alertLevel: Math.min(100, p.alertLevel + alertAdd), tradeCount: p.tradeCount + 1,
+        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1,
         tradeMsg: "Acquired " + amt + " " + ITEMS[idx].name + " for £" + cost.toLocaleString() + "." + (alertAdd > 0 ? " Heat increased." : "") };
     });
     SFX.buy();
@@ -1531,7 +1533,7 @@ function GreyMarket() {
       const inv = [...p.inventory]; inv[idx] -= amt;
       const avg = [...p.avgCost]; if (inv[idx] === 0) avg[idx] = 0;
       return { ...p, cash: p.cash + revenue, inventory: inv, avgCost: avg, qtyPopup: null,
-        alertLevel: Math.min(100, p.alertLevel + alertAdd), tradeCount: p.tradeCount + 1,
+        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1,
         tradeMsg: "Sold " + amt + " " + ITEMS[idx].name + " for £" + revenue.toLocaleString() + " (" + (pl >= 0 ? "+" : "") + "£" + pl.toLocaleString() + ")." };
     });
     SFX.sell();
@@ -1545,7 +1547,7 @@ function GreyMarket() {
         totalEarnings: prev.totalEarnings + Math.max(0, finalWorth),
         bestScore: Math.max(prev.bestScore, finalWorth),
         totalTrades: prev.totalTrades + gs.tradeCount,
-        totalInterpol: (prev.totalInterpol || 0) + gs.encounterStats.interpol,
+        totalPolice: (prev.totalPolice || 0) + gs.encounterStats.police,
       };
       try { store.set("gm_career_stats", JSON.stringify(updated)); } catch (e) {}
       return updated;
@@ -1589,8 +1591,8 @@ function GreyMarket() {
   const inputSt = { fontFamily: font, fontSize: "13px", padding: "6px 10px", background: T.bg,
     border: "1px solid " + T.border, borderRadius: 6, color: T.text, outline: "none", width: "100%", boxSizing: "border-box" };
 
-  const alertColor = gs.alertLevel < 25 ? T.green : gs.alertLevel < 50 ? T.amber : gs.alertLevel < 75 ? "#F97316" : T.red;
-  const alertStatus = gs.alertLevel < 15 ? "Low profile. Operating clean." : gs.alertLevel < 35 ? "On the radar. Trade carefully." : gs.alertLevel < 50 ? "Under surveillance. Consider disappearing." : gs.alertLevel < 65 ? "Active investigation. High-value trades are dangerous." : gs.alertLevel < 85 ? "Critical. Interpol moving to intercept." : "EXTREME. One more step and it's over.";
+  const heatColor = gs.heat < 25 ? T.green : gs.heat < 50 ? T.amber : gs.heat < 75 ? "#F97316" : T.red;
+  const heatStatus = gs.heat < 15 ? "Ghost. Feds don't know you exist." : gs.heat < 35 ? "They've heard your name." : gs.heat < 50 ? "Feds are asking questions." : gs.heat < 65 ? "CID have opened a file on you." : gs.heat < 85 ? "Armed response on standby." : "One more move and it's over.";
   const healthColor = gs.health > 70 ? T.green : gs.health > 40 ? T.amber : T.red;
 
   const Overlay = ({ children, onClose }) => {
@@ -1958,7 +1960,7 @@ function GreyMarket() {
             <span style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Debt: <span style={{ fontSize: 14, fontWeight: 700, color: T.red }}>£4,000</span></span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase" }}>INTERPOL</span>
+            <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase" }}>HEAT</span>
             <div style={{ flex: 1, height: 5, background: T.bg, borderRadius: 3, overflow: "hidden" }}><div style={{ width: "0%", height: "100%", background: T.green, borderRadius: 3 }} /></div>
             <span style={{ fontFamily: font, fontSize: 9, color: T.green }}>0%</span>
           </div>
@@ -2027,21 +2029,26 @@ function GreyMarket() {
   }
 
   // ——— ARRESTED ———
-  if (gs.phase === "arrested") {
+  if (gs.phase === "nicked") {
     return (
       <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px", textAlign: "center" }}>
           <div style={{ fontFamily: font, fontSize: 11, letterSpacing: 3, color: T.red, textTransform: "uppercase", marginBottom: 8 }}>It's over.</div>
-          <div style={{ fontFamily: font, fontSize: 24, fontWeight: 800, color: T.red, marginBottom: 8 }}>ARRESTED</div>
+          <div style={{ fontFamily: font, fontSize: 24, fontWeight: 800, color: T.red, marginBottom: 8 }}>NICKED</div>
           <div style={{ fontSize: 13, color: T.textDim, marginBottom: 24 }}>
-            {"Interpol Red Notice executed. " + gs.playerName + " taken into custody on day " + gs.day + "." + (gs.debt > 0 ? " Outstanding debt to " + gs.creditor.name + ": £" + gs.debt.toLocaleString() + "." : "")}
+            {pick([
+              gs.playerName + " was arrested in " + BOROUGHS[gs.borough].locations[gs.location] + ". The feds had been watching for weeks.",
+              gs.playerName + " got pulled in " + BOROUGHS[gs.borough].locations[gs.location] + ". They found everything. Remanded to Belmarsh.",
+              gs.playerName + " got nicked outside a chicken shop in " + BOROUGHS[gs.borough].locations[gs.location] + ". Three squad cars. The whole ends saw it.",
+              gs.playerName + " thought they were smart. Met Police thought otherwise. Custody in " + BOROUGHS[gs.borough].locations[gs.location] + ".",
+            ]) + (gs.debt > 0 ? " Outstanding debt to " + gs.creditor.name + ": £" + gs.debt.toLocaleString() + "." : "")}
           </div>
           <div style={{ ...panelStyle, padding: 12, marginBottom: 20, textAlign: "left" }}>
             <div style={{ fontFamily: font, fontSize: 13, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               <span style={{ color: T.textDim }}>Cash: <span style={{ color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
               <span style={{ color: T.textDim }}>Day: <span style={{ color: T.text }}>{gs.day}/{MAX_DAYS}</span></span>
               <span style={{ color: T.textDim }}>Debt: <span style={{ color: T.red }}>£{gs.debt.toLocaleString()}</span></span>
-              <span style={{ color: T.textDim }}>Alert: <span style={{ color: T.red }}>{gs.alertLevel}%</span></span>
+              <span style={{ color: T.textDim }}>Heat: <span style={{ color: T.red }}>{gs.heat}%</span></span>
             </div>
           </div>
           {leaderboard.length > 0 && (
@@ -2144,7 +2151,7 @@ function GreyMarket() {
               <span style={{ color: T.textDim }}>Rank: <span style={{ color: T.accent }}>#{rank || "—"}</span></span>
             </div>
             <div style={{ borderTop: "1px solid " + T.border, marginTop: 8, paddingTop: 8, fontFamily: font, fontSize: 11, color: T.textDim }}>
-              {"Trades: " + gs.tradeCount + " · Interpol: " + gs.encounterStats.interpol + " · CIA: " + gs.encounterStats.cia + " · Rivals: " + gs.encounterStats.rivals + " · Militia: " + gs.encounterStats.militia}
+              {"Trades: " + gs.tradeCount + " · Police: " + gs.encounterStats.police + " · CIA: " + gs.encounterStats.cia + " · Rivals: " + gs.encounterStats.rivals + " · Militia: " + gs.encounterStats.militia}
             </div>
           </div>
           {leaderboard.length > 0 && (
@@ -2234,7 +2241,7 @@ function GreyMarket() {
           <ModalBox title="SERVICES" width={420}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { name: "Clean Passport", cost: Math.max(10000, Math.floor(netWorth(gs) * 0.03)), alertDrop: 20, cooldown: 5, field: "passportCooldown", flavour: "Burn your current street name. New documents, new identity.", successMsg: "New passport acquired. Alert level reduced.", isPassport: true },
+                { name: "Clean Passport", cost: Math.max(10000, Math.floor(netWorth(gs) * 0.03)), alertDrop: 20, cooldown: 5, field: "passportCooldown", flavour: "Burn your current street name. New documents, new identity.", successMsg: "New identity acquired. Heat reduced.", isPassport: true },
                 { name: "Port Official", cost: Math.max(5000, Math.floor(netWorth(gs) * 0.015)), alertDrop: 10, cooldown: 3, field: "portOfficialCooldown", flavour: "Pay a customs contact to lose your paperwork.", successMsg: "Port official paid. Paperwork erased." },
                 { name: "Counter-Surveillance", cost: Math.max(15000, Math.floor(netWorth(gs) * 0.05)), alertDrop: 30, cooldown: 8, field: "counterSurvCooldown", flavour: "Hire professionals to scrub your digital footprint.", successMsg: "Counter-surveillance deployed. Digital footprint scrubbed." },
                 ...(gs.health < 100 ? [{ name: "Medical Contact", cost: Math.max(5000, Math.floor(gs.cash * 0.15)), alertDrop: 0, cooldown: 3, field: "medicalCooldown", flavour: "Off-the-books medical care. No questions, no records.", successMsg: "Medical treatment received. Health restored.", isHealth: true }] : []),
@@ -2251,7 +2258,7 @@ function GreyMarket() {
                         {svc.isHealth ? (
                           <div style={{ fontFamily: font, fontSize: 10, color: T.green, marginTop: 2 }}>Health +30%</div>
                         ) : (
-                          <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginTop: 2 }}>{"Alert " + String.fromCharCode(8722) + svc.alertDrop + "%"}</div>
+                          <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginTop: 2 }}>{"Heat " + String.fromCharCode(8722) + svc.alertDrop + "%"}</div>
                         )}
                       </div>
                       {!available ? (
@@ -2268,7 +2275,7 @@ function GreyMarket() {
                                 setGs(p => ({ ...p, cash: p.cash - svc.cost, health: Math.min(100, p.health + 30), [svc.field]: svc.cooldown,
                                   eventMsg: svc.successMsg, eventType: "good" }));
                               } else {
-                                setGs(p => ({ ...p, cash: p.cash - svc.cost, alertLevel: Math.max(0, p.alertLevel - svc.alertDrop), [svc.field]: svc.cooldown,
+                                setGs(p => ({ ...p, cash: p.cash - svc.cost, heat: Math.max(0, p.heat - svc.alertDrop), [svc.field]: svc.cooldown,
                                   eventMsg: svc.successMsg, eventType: "good" }));
                               }
                             } else {
@@ -2310,9 +2317,9 @@ function GreyMarket() {
                 if (containsProfanity(clean)) { setNewAliasError("That street name is not permitted."); return; }
                 const pp = passportPopup;
                 setPassportPopup(null); setNewAliasInput(""); setNewAliasError("");
-                setGs(p => ({ ...p, playerName: clean, cash: p.cash - pp.cost, alertLevel: Math.max(0, p.alertLevel - pp.alertDrop),
+                setGs(p => ({ ...p, playerName: clean, cash: p.cash - pp.cost, heat: Math.max(0, p.heat - pp.alertDrop),
                   [pp.field]: pp.cooldown, servicesPopup: false,
-                  eventMsg: "New identity acquired. You are now " + clean + ". Alert level reduced.", eventType: "good" }));
+                  eventMsg: "New identity acquired. You are now " + clean + ". Heat reduced.", eventType: "good" }));
               }}>CONFIRM</button>
             </div>
           </ModalBox>
@@ -2343,7 +2350,8 @@ function GreyMarket() {
                       <button style={{ ...btnStyle(canBuy), opacity: canBuy ? 1 : 0.4 }} onClick={() => {
                         if (canBuy) {
                           setGs(p => ({ ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
-                            eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units.", eventType: "good" }));
+                            heat: Math.min(100, p.heat + 3),
+                            eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units. Looking flash draws attention.", eventType: "good" }));
                         }
                       }}>{"£" + j.cost.toLocaleString()}</button>
                     )}
@@ -2501,11 +2509,11 @@ function GreyMarket() {
               <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted, flexShrink: 0 }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>INTERPOL</span>
+              <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
               <div style={{ flex: 1, height: 5, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ width: gs.alertLevel + "%", height: "100%", background: alertColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
+                <div style={{ width: gs.heat + "%", height: "100%", background: heatColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
               </div>
-              <span style={{ fontFamily: font, fontSize: 9, color: alertColor }}>{gs.alertLevel}%</span>
+              <span style={{ fontFamily: font, fontSize: 9, color: heatColor }}>{gs.heat}%</span>
             </div>
             {gs.health < 100 && <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEALTH</span>
@@ -2528,13 +2536,13 @@ function GreyMarket() {
                 <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted, flexShrink: 0 }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
               </div>
               <div style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>INTERPOL</span>
+                <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
                 <div style={{ flex: 1, height: 6, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
-                  <div style={{ width: gs.alertLevel + "%", height: "100%", background: alertColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
+                  <div style={{ width: gs.heat + "%", height: "100%", background: heatColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
                 </div>
-                <span style={{ fontFamily: font, fontSize: 10, color: alertColor }}>{gs.alertLevel}%</span>
+                <span style={{ fontFamily: font, fontSize: 10, color: heatColor }}>{gs.heat}%</span>
               </div>
-              <div style={{ fontFamily: font, fontSize: 9, color: alertColor, marginTop: 4 }}>{alertStatus}</div>
+              <div style={{ fontFamily: font, fontSize: 9, color: heatColor, marginTop: 4 }}>{heatStatus}</div>
               <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEALTH</span>
                 <div style={{ flex: 1, height: 6, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
@@ -2702,7 +2710,7 @@ function GreyMarket() {
                     const boroughMsgs = GO_DARK_MSGS[gs.borough];
                     const flavour = pick(boroughMsgs).replace(/{location}/g, BOROUGHS[gs.borough].locations[gs.location]);
                     setGs(p => ({ ...p, popup: mkPopup("DISAPPEAR", null,
-                      flavour + "\n\nYour alert level will decrease. Debt will still compound. You will not trade or travel this turn.\n\nYou have " + p.disappearUsesLeft + " safe houses remaining.",
+                      flavour + "\n\nYour heat will decrease. Debt will still compound. You will not trade or travel this turn.\n\nYou have " + p.disappearUsesLeft + " safe houses remaining.",
                       [
                         { label: "Cancel", primary: false, action: "dismiss" },
                         { label: "Confirm", primary: true, action: () => { dismissPopup(); goDark(); } },
