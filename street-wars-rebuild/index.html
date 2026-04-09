@@ -635,10 +635,10 @@ function getInitialState() {
 }
 
 function dayMsg(day) {
-  if (day === 25) return "5 days remaining. Prioritise liquidation.";
-  if (day === 27) return "3 days remaining. Final trades.";
-  if (day === 29) return "Final day tomorrow. Sell everything.";
-  if (day === 30) return "LAST DAY. Liquidate all inventory.";
+  if (day === 25) return "5 days left. Start selling up.";
+  if (day === 27) return "3 days left. Move what you've got.";
+  if (day === 29) return "Last chance to travel. Tomorrow you cash out.";
+  if (day === 30) return "LAST DAY. Sell everything. This is it.";
   return null;
 }
 
@@ -756,7 +756,7 @@ function GreyMarket() {
             const cmsg = pickNew(msgs.warning, prev.lastMessageShown);
             return { ...prev, creditorStage: 1, creditorNextDay: nextDay, lastMessageShown: cmsg,
               eventMsg: cmsg, eventType: "bad",
-              popup: mkPopup("Message Received", null, cmsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+              popup: mkPopup("Message Received", null, cmsg, [{ label: "OK", action: "dismiss" }]) };
           }
           // Heavy — devastating
           const inv = [...prev.inventory]; const avg = [...prev.avgCost];
@@ -768,10 +768,10 @@ function GreyMarket() {
           const newDay = Math.min(prev.day + 1, MAX_DAYS);
           const nextDay = newDay + (stageInfo.gapAfter || 8);
           const cmsg = pickNew(msgs.heavy, prev.lastMessageShown).replace(/{location}/g, loc);
-          const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + ". Cargo: -75%. Health: -" + (prev.health - healthAfter) + "%.";
+          const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + ". Stash: -75%. Health: -" + (prev.health - healthAfter) + "%.";
           return { ...prev, creditorStage: stage + 1, creditorNextDay: nextDay, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg, health: healthAfter, lastMessageShown: cmsg,
             eventMsg: cmsg, eventType: "bad",
-            popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+            popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
         }
 
         // === REN — takes inventory, not cash ===
@@ -781,7 +781,7 @@ function GreyMarket() {
             const cmsg = pickNew(msgs.warning, prev.lastMessageShown);
             return { ...prev, creditorStage: 1, creditorNextDay: nextDay, lastMessageShown: cmsg,
               eventMsg: cmsg, eventType: "bad",
-              popup: mkPopup("Message Received", null, cmsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+              popup: mkPopup("Message Received", null, cmsg, [{ label: "OK", action: "dismiss" }]) };
           }
           const totalInv = prev.inventory.reduce((a, b) => a + b, 0);
           const isHeavy = stage >= 2;
@@ -797,7 +797,7 @@ function GreyMarket() {
             const popupMsg = cmsg + "\n\nCargo: -" + Math.round(invPct * 100) + "%." + (healthLoss > 0 ? " Health: -" + healthLoss + "%." : "");
             return { ...prev, creditorStage: stage + 1, creditorNextDay: nextDay, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - healthLoss), lastMessageShown: cmsg,
               eventMsg: cmsg, eventType: "bad",
-              popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+              popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
           } else {
             const healthLoss = isHeavy ? 25 : 15;
             const nextDay = prev.day + stageInfo.gapAfter;
@@ -805,7 +805,7 @@ function GreyMarket() {
             const popupMsg = cmsg + "\n\nHealth: -" + healthLoss + "%.";
             return { ...prev, creditorStage: stage + 1, creditorNextDay: nextDay, health: Math.max(0, prev.health - healthLoss), lastMessageShown: cmsg,
               eventMsg: cmsg, eventType: "bad",
-              popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+              popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
           }
         }
 
@@ -815,7 +815,7 @@ function GreyMarket() {
           const cmsg = pickNew(msgs.warning, prev.lastMessageShown);
           return { ...prev, creditorStage: 1, creditorNextDay: nextDay, lastMessageShown: cmsg,
             eventMsg: cmsg, eventType: "bad",
-            popup: mkPopup("Message Received", null, cmsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+            popup: mkPopup("Message Received", null, cmsg, [{ label: "OK", action: "dismiss" }]) };
         }
         if (stage === 1) {
           const inv = [...prev.inventory]; const avg = [...prev.avgCost];
@@ -833,7 +833,7 @@ function GreyMarket() {
           const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + "." + (invPct > 0 ? " Cargo: -" + Math.round(invPct * 100) + "%." : "") + " Health: -" + healthLoss + "%.";
           return { ...prev, creditorStage: 2, creditorNextDay: nextDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - healthLoss), lastMessageShown: cmsg,
             eventMsg: cmsg, eventType: "bad",
-            popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+            popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
         }
         // Stage 2+ (heavy)
         const inv = [...prev.inventory]; const avg = [...prev.avgCost];
@@ -852,7 +852,7 @@ function GreyMarket() {
         const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + "." + (invPct > 0 ? " Cargo: -" + Math.round(invPct * 100) + "%." : "") + " Health: -" + healthLoss + "%.";
         return { ...prev, creditorStage: stage + 1, creditorNextDay: nextDay, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - healthLoss), lastMessageShown: cmsg,
           eventMsg: cmsg, eventType: "bad",
-          popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
       }
 
       // === REPEAT HEAVY STAGE ===
@@ -865,10 +865,10 @@ function GreyMarket() {
         const newDay = Math.min(prev.day + 1, MAX_DAYS);
         const nextDay = newDay + 8;
         const cmsg = pickNew(msgs.repeat, prev.lastMessageShown).replace(/{location}/g, loc);
-        const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + ". Cargo: -40%. Health: -40%.";
+        const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + ". Stash: -40%. Health: -40%.";
         return { ...prev, creditorNextDay: nextDay, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - 40), lastMessageShown: cmsg,
           eventMsg: cmsg, eventType: "bad",
-          popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (cid === "ren") {
         const totalInv = prev.inventory.reduce((a, b) => a + b, 0);
@@ -883,14 +883,14 @@ function GreyMarket() {
           const popupMsg = cmsg + "\n\nCargo: -" + Math.round(invPct * 100) + "%. Health: -10%.";
           return { ...prev, creditorNextDay: nextDay, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - 10), lastMessageShown: cmsg,
             eventMsg: cmsg, eventType: "bad",
-            popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+            popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
         } else {
           const nextDay = prev.day + 4;
           const cmsg = pickNew(msgs.firstEmpty, prev.lastMessageShown);
           const popupMsg = cmsg + "\n\nHealth: -25%.";
           return { ...prev, creditorNextDay: nextDay, health: Math.max(0, prev.health - 25), lastMessageShown: cmsg,
             eventMsg: cmsg, eventType: "bad",
-            popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+            popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
         }
       }
       // Greezy and Auntie repeat
@@ -910,7 +910,7 @@ function GreyMarket() {
       const popupMsg = cmsg + "\n\nCash: -£" + cashTaken.toLocaleString() + "." + (invPct > 0 ? " Cargo: -" + Math.round(invPct * 100) + "%." : "") + " Health: -" + healthLoss + "%.";
       return { ...prev, creditorNextDay: newDay + gap, day: newDay, cash: prev.cash - cashTaken, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - healthLoss), lastMessageShown: cmsg,
         eventMsg: cmsg, eventType: "bad",
-        popup: mkPopup(c.name, null, popupMsg, [{ label: "Acknowledged", action: "dismiss" }]) };
+        popup: mkPopup(c.name, null, popupMsg, [{ label: "OK", action: "dismiss" }]) };
     });
   }, []);
   // ——— TRIGGER ENCOUNTERS (threats + random) ———
@@ -996,7 +996,7 @@ function GreyMarket() {
           }
           const seizeMsgs = ["They went through everything. Took the lot they could carry. 'Consider yourself lucky.'", "Seizure. They bagged up your gear right in front of you. Nothing you could do.", "They took what they wanted and wrote it up. Your stash is evidence now."];
           return { ...p, inventory: inv, avgCost: avg, popup: null,
-            eventMsg: seizeCount > 0 ? pick(seizeMsgs) + " Seized: " + seized.join(", ") + "." : "Detained and released. Nothing on you.", eventType: "bad" };
+            eventMsg: seizeCount > 0 ? pick(seizeMsgs) + " Seized: " + seized.join(", ") + "." : "Stopped and released. Nothing on you.", eventType: "bad" };
         }) });
 
         // === Helper: Backhander action ===
@@ -1165,14 +1165,14 @@ function GreyMarket() {
           return { ...prev, inventory: inv, avgCost: avg, heat: Math.min(100, prev.heat + heatGain),
             encounterStats: { ...prev.encounterStats, raid: prev.encounterStats.raid + 1 },
             eventMsg: msg, eventType: "bad",
-            popup: mkPopup("RAID", null, msg + "\n\nAll inventory seized. Heat: +" + heatGain + "%.", [{ label: "...", action: "dismiss" }]) };
+            popup: mkPopup("RAID", null, msg + "\n\nAll stash seized. Heat: +" + heatGain + "%.", [{ label: "...", action: "dismiss" }]) };
         } else {
           const raidMsgs = ["Word got back to the wrong people. You've been on their patch too long. They hit your spot in " + loc + ". Took everything.", "Local crew kicked your door in. You've been too visible in " + boroughName + " for too long. Stock's gone. All of it.", "You got comfortable. They noticed. Rival dealers cleared out your stash in " + loc + "."];
           const msg = pick(raidMsgs);
           return { ...prev, inventory: inv, avgCost: avg, health: Math.max(0, prev.health - 10),
             encounterStats: { ...prev.encounterStats, raid: prev.encounterStats.raid + 1 },
             eventMsg: msg, eventType: "bad",
-            popup: mkPopup("RAID", null, msg + "\n\nAll inventory seized. Health: -10%.", [{ label: "...", action: "dismiss" }]) };
+            popup: mkPopup("RAID", null, msg + "\n\nAll stash seized. Health: -10%.", [{ label: "...", action: "dismiss" }]) };
         }
       }
 
@@ -1212,12 +1212,12 @@ function GreyMarket() {
         return { ...prev, lastMessageShown: msg, encounterStats: { ...prev.encounterStats, rivals: prev.encounterStats.rivals + 1 },
           eventMsg: "Rival dealers.", eventType: "bad",
           popup: mkPopup("RIVAL DEALERS", null, msg, [
-            { label: "Comply (lose 30% cargo)", action: () => setGs(p => {
+            { label: "Comply (lose 30% stash)", action: () => setGs(p => {
               const inv = [...p.inventory]; const avg = [...p.avgCost];
               for (let i = 0; i < inv.length; i++) {
                 if (inv[i] > 0) { const lost = Math.ceil(inv[i] * 0.3); inv[i] = Math.max(0, inv[i] - lost); if (inv[i] === 0) avg[i] = 0; }
               }
-              return { ...p, inventory: inv, avgCost: avg, popup: null, eventMsg: "Complied. 30% of cargo surrendered.", eventType: "bad" };
+              return { ...p, inventory: inv, avgCost: avg, popup: null, eventMsg: "Complied. 30% of stash gone.", eventType: "bad" };
             }) },
             (prev.debt > 0 && prev.creditor && (prev.debtPaymentsMade > 0 || prev.creditorStage <= 1)) ? { label: "Call " + prev.creditor.name, style: { color: T.red, borderColor: T.red }, action: () => {
               setGs(p => {
@@ -1228,7 +1228,7 @@ function GreyMarket() {
                 const callImg = uses === 0 ? (CREDITOR_CALL_IMAGES[cid] || null) : null;
                 return { ...p, creditorProtectionUsed: { ...p.creditorProtectionUsed, rivals: uses + 1 },
                   eventMsg: p.creditor.name + " handled it.", eventType: "good",
-                  popup: { title: p.creditor.name, icon: null, image: callImg, message: msgText, buttons: [{ label: "Acknowledged", action: "dismiss" }] } };
+                  popup: { title: p.creditor.name, icon: null, image: callImg, message: msgText, buttons: [{ label: "OK", action: "dismiss" }] } };
               });
             }} : null,
             (prev.debt > 0 && prev.creditor && prev.debtPaymentsMade === 0 && prev.creditorStage > 1) ? { label: prev.creditor.name + " — not answering", style: { color: T.textMuted, borderColor: T.border, cursor: "default", opacity: 0.5 }, action: () => {
@@ -1260,27 +1260,27 @@ function GreyMarket() {
         const msg = pickNew(SURGE_TIP_MSGS, prev.lastMessageShown).replace(/{location}/g, locationName).replace(/{item}/g, itemName).replace(/{borough}/g, randBorough.name);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "neutral", eventFades: true,
           pendingNews: { itemIdx, borough: randBoroughIdx, location: randLocationIdx, type: "spike" },
-          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "crash") {
         SFX.ping();
         const msg = pickNew(CRASH_TIP_MSGS, prev.lastMessageShown).replace(/{location}/g, locationName).replace(/{item}/g, itemName).replace(/{borough}/g, randBorough.name);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "neutral", eventFades: true,
           pendingNews: { itemIdx, borough: randBoroughIdx, location: randLocationIdx, type: "crash" },
-          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "headsUp") {
         SFX.ping();
         const msg = pickNew(HEADS_UP_MSGS, prev.lastMessageShown).replace(/{location}/g, locationName).replace(/{borough}/g, randBorough.name);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "bad", eventFades: true,
-          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "opportunity") {
         SFX.ping();
         const msg = pickNew(OPPORTUNITY_MSGS, prev.lastMessageShown).replace(/{location}/g, locationName).replace(/{item}/g, itemName).replace(/{borough}/g, randBorough.name);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "good", eventFades: true,
           pendingNews: { itemIdx, borough: randBoroughIdx, location: randLocationIdx, type: "spike" },
-          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("WORD ON THE STREET", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
 
       // === RANDOM ENCOUNTERS ===
@@ -1293,7 +1293,7 @@ function GreyMarket() {
         const msg = pickNew(INSIDER_TIP_MSGS, prev.lastMessageShown).replace(/{item}/g, itemName).replace(/{tipLocation}/g, tipLocation);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "good", eventFades: true,
           activeTip: { itemIdx, borough: tipBoroughIdx, location: tipLocationIdx, type: isExpensive ? "expensive" : "cheap" },
-          popup: mkPopup("INSIDER TIP", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("INSIDER TIP", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "streetDeal") {
         SFX.ping();
@@ -1308,29 +1308,29 @@ function GreyMarket() {
               const inv = [...p.inventory]; const avg = [...p.avgCost];
               const oldTotal = avg[itemIdx] * inv[itemIdx]; inv[itemIdx] += qty;
               avg[itemIdx] = Math.round((oldTotal + lowprice) / inv[itemIdx]);
-              return { ...p, cash: p.cash - lowprice, inventory: inv, avgCost: avg, popup: null, eventMsg: "Acquired " + qty + " " + itemName + " for £" + lowprice.toLocaleString() + ".", eventType: "good" };
+              return { ...p, cash: p.cash - lowprice, inventory: inv, avgCost: avg, popup: null, eventMsg: "Bought " + qty + " " + itemName + " for £" + lowprice.toLocaleString() + ".", eventType: "good" };
             }) },
             { label: "Decline", action: "dismiss" },
-          ] : [{ label: prev.cash < lowprice ? "Insufficient funds" : "No capacity", action: "dismiss" }]) };
+          ] : [{ label: prev.cash < lowprice ? "Not enough P's" : "No room", action: "dismiss" }]) };
       }
       if (eventType === "luckyDay") {
         SFX.ping();
         const amt = 5000 + Math.floor(Math.random() * 15000);
         const msg = pickNew(LUCKY_DAY_MSGS, prev.lastMessageShown).replace(/\$\{windfall\}/g, amt.toLocaleString());
-        return { ...prev, cash: prev.cash + amt, lastMessageShown: msg, eventMsg: "Windfall. +£" + amt.toLocaleString() + ".", eventType: "good",
-          popup: mkPopup("LUCKY DAY", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+        return { ...prev, cash: prev.cash + amt, lastMessageShown: msg, eventMsg: "Lucky day. +£" + amt.toLocaleString() + ".", eventType: "good",
+          popup: mkPopup("LUCKY DAY", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "flavour") {
         const msg = pickNew(FLAVOUR_MSGS, prev.lastMessageShown);
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "neutral", eventFades: true,
-          popup: mkPopup("LONDON", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("LONDON", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
       if (eventType === "badDay") {
         const dangerLoss = 1000 + Math.floor(Math.random() * 5000);
         const actualLoss = Math.min(prev.cash, dangerLoss);
         const msg = pickNew(BAD_DAY_MSGS, prev.lastMessageShown).replace(/\$\{dangerLoss\}/g, actualLoss.toLocaleString());
         return { ...prev, cash: prev.cash - actualLoss, lastMessageShown: msg, eventMsg: msg, eventType: "bad",
-          popup: mkPopup("BAD DAY", null, msg, [{ label: "Acknowledged", action: "dismiss" }]) };
+          popup: mkPopup("BAD DAY", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
 
       return prev;
@@ -1418,13 +1418,13 @@ function GreyMarket() {
       if (rIdx === prev.borough && cIdx === prev.location) return prev;
       const bk = rIdx + "-" + cIdx;
       const blocked = prev.blockedLocations[bk];
-      if (blocked && blocked > 0) return { ...prev, eventMsg: "Blocked from " + BOROUGHS[rIdx].locations[cIdx] + " for " + blocked + " more turns.", eventType: "bad" };
+      if (blocked && blocked > 0) return { ...prev, eventMsg: "Can't go to " + BOROUGHS[rIdx].locations[cIdx] + " for " + blocked + " more days.", eventType: "bad" };
 
       const changedBorough = rIdx !== prev.borough;
       const daysCost = changedBorough ? 2 : 1;
       const newDay = prev.day + daysCost;
       if (newDay > MAX_DAYS) {
-        if (changedBorough) return { ...prev, eventMsg: "Not enough time for inter-borough travel.", eventType: "bad", travelPopup: false, travelBorough: null };
+        if (changedBorough) return { ...prev, eventMsg: "No time to get there. Too far.", eventType: "bad", travelPopup: false, travelBorough: null };
         return { ...prev, phase: "gameover" };
       }
 
@@ -1486,7 +1486,7 @@ function GreyMarket() {
         disappearCooldown: Math.max(0, prev.disappearCooldown - daysCost),
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - daysCost),
         jamalGhost: Math.max(0, prev.jamalGhost - daysCost),
-        eventMsg: arrivalMsg || dm || ("Arrived in " + BOROUGHS[rIdx].locations[cIdx] + ", " + BOROUGHS[rIdx].name + "." + transitNote + debtMsg + stagnationMsg),
+        eventMsg: arrivalMsg || dm || ("You're in " + BOROUGHS[rIdx].locations[cIdx] + " now. " + BOROUGHS[rIdx].name + "." + transitNote + debtMsg + stagnationMsg),
         eventType: arrivalMsg ? "good" : dm ? "bad" : "neutral",
         eventFades: false, eventFaded: false,
       };
@@ -1523,7 +1523,7 @@ function GreyMarket() {
         shiftyCooldown: Math.max(0, prev.shiftyCooldown - 1),
         jamalGhost: Math.max(0, prev.jamalGhost - 1),
         tradeMsg: null, popup: null,
-        eventMsg: dm || ("Disappeared. Heat reduced." + debtMsg + " (" + usesAfter + " left)"),
+        eventMsg: dm || ("Gone ghost. Heat reduced." + debtMsg + " (" + usesAfter + " left)"),
         eventType: dm ? "bad" : "neutral", eventFades: false, eventFaded: false,
       };
     });
@@ -1534,8 +1534,8 @@ function GreyMarket() {
   const doBuy = useCallback((idx, amt) => {
     const cost = amt * gs.prices[idx];
     const space = gs.capacity - totalInventory(gs.inventory);
-    if (cost > gs.cash) { setGs(p => ({ ...p, tradeMsg: "Insufficient funds for " + amt + " " + ITEMS[idx].name + ". Need £" + cost.toLocaleString() + ".", qtyPopup: null })); return; }
-    if (amt > space) { setGs(p => ({ ...p, tradeMsg: "Insufficient capacity. Room for " + space + " more units.", qtyPopup: null })); return; }
+    if (cost > gs.cash) { setGs(p => ({ ...p, tradeMsg: "Can't afford " + amt + " " + ITEMS[idx].name + ". Need £" + cost.toLocaleString() + ".", qtyPopup: null })); return; }
+    if (amt > space) { setGs(p => ({ ...p, tradeMsg: "No room. Space for " + space + " more units.", qtyPopup: null })); return; }
     const itemHeat = heatIncrease(idx, amt);
     const tradeHeat = 1 + Math.floor(Math.random() * 2);
     const volumeHeat = amt >= 10 ? 3 + Math.floor(Math.random() * 3) : 0;
@@ -1546,14 +1546,14 @@ function GreyMarket() {
       avg[idx] = Math.round((oldTotal + cost) / inv[idx]);
       return { ...p, cash: p.cash - cost, inventory: inv, avgCost: avg, qtyPopup: null,
         heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1,
-        tradeMsg: "Acquired " + amt + " " + ITEMS[idx].name + " for £" + cost.toLocaleString() + "." + (alertAdd > 0 ? " Heat increased." : "") };
+        tradeMsg: "Bought " + amt + " " + ITEMS[idx].name + " for £" + cost.toLocaleString() + "." + (alertAdd > 0 ? " Heat increased." : "") };
     });
     SFX.buy();
     setTimeout(() => checkAchievements(), 100);
   }, [gs.prices, gs.cash, gs.capacity, gs.inventory]);
 
   const doSell = useCallback((idx, amt) => {
-    if (amt > gs.inventory[idx]) { setGs(p => ({ ...p, tradeMsg: "Only " + gs.inventory[idx] + " " + ITEMS[idx].name + " in cargo.", qtyPopup: null })); return; }
+    if (amt > gs.inventory[idx]) { setGs(p => ({ ...p, tradeMsg: "Only " + gs.inventory[idx] + " " + ITEMS[idx].name + " in stash.", qtyPopup: null })); return; }
     const revenue = amt * gs.prices[idx];
     const pl = revenue - (amt * gs.avgCost[idx]);
     const itemHeat = heatIncrease(idx, amt);
@@ -1935,7 +1935,7 @@ function GreyMarket() {
                           <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginBottom: 4 }}>{c.title}</div>
                           <div style={{ fontFamily: sansFont, fontSize: 11, color: T.textDim, lineHeight: 1.4, marginBottom: 6 }}>{c.desc}</div>
                           <div style={{ fontFamily: font, fontSize: 11, marginBottom: 2 }}>
-                            <span style={{ color: T.red }}>Debt: ${c.debt.toLocaleString()}</span>
+                            <span style={{ color: T.red }}>Debt: £{c.debt.toLocaleString()}</span>
                             <span style={{ color: T.textMuted }}> · {Math.round(c.interest * 100)}% per day</span>
                           </div>
                           <div style={{ fontFamily: font, fontSize: 10, color: T.green, marginBottom: 4 }}>Capital: £{(2000 + Math.floor(c.debt * 0.5)).toLocaleString()}</div>
@@ -1981,7 +1981,7 @@ function GreyMarket() {
                     <div style={{ fontFamily: font, fontSize: 11, color: T.accent, marginBottom: 6 }}>{c.title}</div>
                     <div style={{ fontFamily: sansFont, fontSize: 11, color: T.textDim, lineHeight: 1.5, marginBottom: 8 }}>{c.desc}</div>
                     <div style={{ fontFamily: font, fontSize: 11, marginBottom: 6 }}>
-                      <span style={{ color: T.red }}>Debt: ${c.debt.toLocaleString()}</span>
+                      <span style={{ color: T.red }}>Debt: £{c.debt.toLocaleString()}</span>
                       <span style={{ color: T.textMuted }}> · {Math.round(c.interest * 100)}% per day</span>
                     </div>
                     <div style={{ fontFamily: font, fontSize: 10, color: T.green }}>Starting capital: £{(2000 + Math.floor(c.debt * 0.5)).toLocaleString()}</div>
@@ -2014,8 +2014,8 @@ function GreyMarket() {
     const tutorialExplainers = {
       header: { title: "DASHBOARD", text: "This is your dashboard. Cash is what you're carrying. Debt is what you owe your creditor — interest compounds every day. The bar shows your heat level.", tip: "Pay your debt early. Interest will eat you alive." },
       location: { title: "LOCATION", text: "This is where you are. Tap a location to travel within the borough (1 day). Tap Travel to move between boroughs (2 days). Prices change every time you move.", tip: "Different boroughs have different prices. That's where the profit is." },
-      market: { title: "MARKET", text: "These are the items available at your current location. Prices on the left, your holdings on the right. Tap any row to buy or sell.", tip: "Track what you paid. Sell for more than that. That's the whole game." },
-      buttons: { title: "TOOLS", text: "These are your tools. Pay your creditor here. More options appear as you play — services to reduce heat, a shop for gear and protection, and ways to disappear when things get dangerous.", tip: "You won't need all of these on day one. Focus on trading." },
+      market: { title: "MARKET", text: "What's available here. Prices on the left, what you're holding on the right. Tap to buy or sell.", tip: "Track what you paid. Sell for more than that. That's the whole game." },
+      buttons: { title: "TOOLS", text: "Your tools. Pay your debt here. More options unlock as you play — services, the shop, and safe houses.", tip: "You won't need all of these on day one. Focus on trading." },
     };
     const [tutorialActive, setTutorialActive] = React.useState(null);
     return (
@@ -2046,7 +2046,7 @@ function GreyMarket() {
           </div>
         </div>
         {/* Mock event bar */}
-        <div style={{ ...panelStyle, padding: "6px 10px", marginBottom: 6, fontFamily: font, fontSize: 11, color: T.textDim }}>Day 1. Peckham, Southwark. Awaiting instructions.</div>
+        <div style={{ ...panelStyle, padding: "6px 10px", marginBottom: 6, fontFamily: font, fontSize: 11, color: T.textDim }}>Day 1. Peckham, Southwark. You're on road. Let's go.</div>
         {/* Mock market */}
         <div onClick={() => { if (!ts.market) { setTutorialActive("market"); setGs(p => ({ ...p, tutorialSeen: { ...p.tutorialSeen, market: true } })); } }}
           style={{ ...panelStyle, flex: 1, overflow: "hidden", marginBottom: 6, ...glowStyle("market"), cursor: !ts.market ? "pointer" : "default" }}>
@@ -2276,7 +2276,7 @@ function GreyMarket() {
           <Overlay onClose={() => { setGs(p => ({ ...p, qtyPopup: null })); setQtyInput(""); setQtyError(""); }}>
             <div style={{ background: T.surface, border: "1px solid " + T.accent, borderRadius: 12, maxWidth: 360, width: "92%", maxHeight: "85vh", overflowY: "auto", overflowX: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid " + T.border, display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.accent, textTransform: "uppercase" }}>{isBuy ? "ACQUIRE" : "SELL"} — {item.name}</span>
+                <span style={{ fontFamily: sansFont, fontSize: 14, fontWeight: 700, color: T.accent, textTransform: "uppercase" }}>{isBuy ? "BUY" : "SELL"} — {item.name}</span>
               </div>
               <div style={{ padding: 16 }}>
                 <div style={{ fontFamily: font, fontSize: 13, color: T.textDim, marginBottom: 6 }}>
@@ -2288,12 +2288,12 @@ function GreyMarket() {
                     {price > avgCost ? <span style={{ color: T.green }}> Profit ▲</span> : <span style={{ color: T.red }}> Loss ▼</span>}
                   </div>
                 )}
-                {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>In cargo: <span style={{ color: T.text }}>{maxSell}</span></div>}
+                {!isBuy && <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 10 }}>Holding: <span style={{ color: T.text }}>{maxSell}</span></div>}
                 <NumPad value={qtyInput} onChange={v => { setQtyInput(v); setQtyError(""); }} onMax={() => { setQtyInput(String(maxQty)); setQtyError(""); }} maxLabel={"Max (" + maxQty + ")"} />
                 {amt > 0 && (
                   <div style={{ fontFamily: font, fontSize: 12, color: T.textDim, marginBottom: 6 }}>
                     Total: <span style={{ color: isBuy ? T.red : T.green }}>£{total.toLocaleString()}</span>
-                    {!isBuy && avgCost > 0 && <span style={{ marginLeft: 8, color: pl >= 0 ? T.green : T.red }}>({pl >= 0 ? "+" : ""}${pl.toLocaleString()})</span>}
+                    {!isBuy && avgCost > 0 && <span style={{ marginLeft: 8, color: pl >= 0 ? T.green : T.red }}>({pl >= 0 ? "+" : ""}£{pl.toLocaleString()})</span>}
                   </div>
                 )}
                 {qtyError && <div style={{ fontFamily: font, fontSize: 11, color: T.red, marginBottom: 8 }}>{qtyError}</div>}
@@ -2303,13 +2303,13 @@ function GreyMarket() {
                     if (amt <= 0) return;
                     if (isBuy) {
                       const space = gs.capacity - totalInventory(gs.inventory);
-                      if (total > gs.cash) { setQtyError("Insufficient funds. Need £" + total.toLocaleString() + "."); return; }
-                      if (amt > space) { setQtyError("Not enough capacity. Room for " + space + " more units."); return; }
+                      if (total > gs.cash) { setQtyError("Not enough P's. Need £" + total.toLocaleString() + "."); return; }
+                      if (amt > space) { setQtyError("No room. Space for " + space + " more units."); return; }
                     } else {
-                      if (amt > gs.inventory[q.itemIdx]) { setQtyError("Only " + gs.inventory[q.itemIdx] + " in cargo."); return; }
+                      if (amt > gs.inventory[q.itemIdx]) { setQtyError("Only " + gs.inventory[q.itemIdx] + " in stash."); return; }
                     }
                     isBuy ? doBuy(q.itemIdx, amt) : doSell(q.itemIdx, amt); setQtyInput(""); setQtyError("");
-                  }}>{isBuy ? "Acquire" : "Sell"}</button>
+                  }}>{isBuy ? "Buy" : "Sell"}</button>
                 </div>
               </div>
             </div>
@@ -2553,9 +2553,9 @@ function GreyMarket() {
               <button style={btnStyle(true)} onClick={() => {
                 const a = parseInt(debtAmt); if (!a || a <= 0) return;
                 const max = Math.min(gs.cash, gs.debt);
-                if (a > max) { setGs(p => ({ ...p, eventMsg: "Insufficient funds.", eventType: "bad" })); return; }
+                if (a > max) { setGs(p => ({ ...p, eventMsg: "Not enough P's.", eventType: "bad" })); return; }
                 setGs(p => ({ ...p, cash: p.cash - a, debt: p.debt - a, debtPaymentsMade: p.debtPaymentsMade + 1, debtPopup: false,
-                  eventMsg: "Paid £" + a.toLocaleString() + " toward debt." + (p.debt - a <= 0 ? " DEBT CLEARED." : ""), eventType: "good" }));
+                  eventMsg: "Paid £" + a.toLocaleString() + " off the debt." + (p.debt - a <= 0 ? " DEBT CLEARED. You're free." : ""), eventType: "good" }));
                 setTimeout(() => checkAchievements(), 100);
                 setDebtAmt("");
               }}>Pay</button>
@@ -2663,7 +2663,7 @@ function GreyMarket() {
 
         {/* EVENT BAR */}
         <div style={{ ...panelStyle, padding: "8px 14px", background: eventBg, border: eventBorder, fontFamily: font, fontSize: isMobile ? 11 : 12, color: T.text, lineHeight: 1.5, overflowWrap: "break-word", wordBreak: "break-word", flexShrink: 0 }}>
-          <div style={{ opacity: gs.eventFaded ? 0 : 1, transition: "opacity 1.5s ease-out" }}>{gs.eventMsg || ("Day 1. " + BOROUGHS[gs.borough].locations[gs.location] + ", " + BOROUGHS[gs.borough].name + ". Awaiting instructions.")}</div>
+          <div style={{ opacity: gs.eventFaded ? 0 : 1, transition: "opacity 1.5s ease-out" }}>{gs.eventMsg || ("Day 1. " + BOROUGHS[gs.borough].locations[gs.location] + ", " + BOROUGHS[gs.borough].name + ". You're on road. Let's go.")}</div>
           {gs.tradeMsg && <div style={{ color: T.accent, marginTop: 4, fontSize: 11 }}>{gs.tradeMsg}</div>}
         </div>
 
@@ -2695,7 +2695,7 @@ function GreyMarket() {
                       const canBuy = gs.cash >= gs.prices[i] && space > 0;
                       return (
                         <div key={i}
-                          onClick={() => { if (canBuy) { setGs(p => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); } else { setGs(p => ({ ...p, eventMsg: "Insufficient funds or cargo space.", eventType: "bad" })); } }}
+                          onClick={() => { if (canBuy) { setGs(p => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); } else { setGs(p => ({ ...p, eventMsg: "Not enough cash or space.", eventType: "bad" })); } }}
                           style={{ display: "flex", alignItems: "center", height: rowH,
                             padding: "0 8px", cursor: "pointer", whiteSpace: "nowrap",
                             background: isMega ? "rgba(249,115,22,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
@@ -2785,7 +2785,7 @@ function GreyMarket() {
                     const boroughMsgs = GO_DARK_MSGS[gs.borough];
                     const flavour = pick(boroughMsgs).replace(/{location}/g, BOROUGHS[gs.borough].locations[gs.location]);
                     setGs(p => ({ ...p, popup: mkPopup("DISAPPEAR", null,
-                      flavour + "\n\nYour heat will decrease. Debt will still compound. You will not trade or travel this turn.\n\nYou have " + p.disappearUsesLeft + " safe houses remaining.",
+                      flavour + "\n\nHeat goes down. Debt still ticks up. No trades, no travel.\n\n" + p.disappearUsesLeft + " safe houses left.",
                       [
                         { label: "Cancel", primary: false, action: "dismiss" },
                         { label: "Confirm", primary: true, action: () => { dismissPopup(); goDark(); } },
@@ -2798,7 +2798,7 @@ function GreyMarket() {
                     : <button style={{ ...btnStyle(true, T.red), ...bSize, ...glow("cashOut") }} onClick={() => {
                         const daysLeft = MAX_DAYS - gs.day;
                         setGs(p => ({ ...p, popup: mkPopup("CASH OUT", null,
-                          "Walk away with what you have? You still have " + daysLeft + " days left. Every day is potential profit — or potential drama.",
+                          "Walk away now? You've still got " + daysLeft + " days. Every day is money or madness.",
                           [
                             { label: "Cash Out", primary: false, action: () => { setGs(p2 => ({ ...p2, cashedOut: true })); endGame(); } },
                             { label: "Stay", primary: true, action: "dismiss" },
