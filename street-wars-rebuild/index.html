@@ -546,8 +546,7 @@ function heatIncrease(itemIdx, amount) {
 
 function spikeMultiplier(basePrice, type) {
   if (type === "tip") {
-    if (basePrice >= 8000) return 2.0 + Math.random() * 1.5;
-    return 5 + Math.random() * 6;
+    return 3 + Math.random() * 3;
   } else {
     if (basePrice >= 8000) return 2.0 + Math.random() * 1.5;
     return 2.5 + Math.random() * 3;
