@@ -80,23 +80,23 @@ async function supaFetch(path, options = {}) {
   } catch (e) { return null; }
 }
 async function loadLeaderboard() {
-  const data = await supaFetch("/gm_leaderboard?select=player_name,score,played_at&order=score.desc&limit=10");
+  const data = await supaFetch("/leaderboard?select=player_name,score,played_at&order=score.desc&limit=10");
   if (Array.isArray(data)) return data.map((r) => ({ name: r.player_name, score: r.score }));
   return [];
 }
 async function upsertBestScore(name, score) {
   if (!supabaseEnabled() || !name || typeof score !== "number" || !isFinite(score)) return;
   const capped = Math.max(-10000000, Math.min(100000000, Math.round(score)));
-  const existing = await supaFetch(`/gm_leaderboard?player_name=eq.${encodeURIComponent(name)}&select=score`);
+  const existing = await supaFetch(`/leaderboard?player_name=eq.${encodeURIComponent(name)}&select=score`);
   if (Array.isArray(existing) && existing.length > 0) {
     if (capped > existing[0].score) {
-      await supaFetch(`/gm_leaderboard?player_name=eq.${encodeURIComponent(name)}`, {
+      await supaFetch(`/leaderboard?player_name=eq.${encodeURIComponent(name)}`, {
         method: "PATCH", prefer: "return=minimal",
         body: JSON.stringify({ score: capped, played_at: new Date().toISOString() }),
       });
     }
   } else {
-    await supaFetch("/gm_leaderboard", {
+    await supaFetch("/leaderboard", {
       method: "POST", prefer: "return=minimal",
       body: JSON.stringify({ player_name: name, score: capped }),
     });
