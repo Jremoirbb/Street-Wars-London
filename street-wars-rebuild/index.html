@@ -1303,7 +1303,7 @@ function GreyMarket() {
         SFX.ping();
         const qty = 2 + Math.floor(Math.random() * 8);
         const lowprice = Math.max(10, Math.round(ITEMS[itemIdx].basePrice * (0.1 + Math.random() * 0.3)));
-        const msg = pickNew(STREET_DEAL_MSGS, prev.lastMessageShown).replace(/{item}/g, itemName).replace(/{qty}/g, qty);
+        const msg = pickNew(STREET_DEAL_MSGS, prev.lastMessageShown).replace(/{item}/g, itemName).replace(/{qty}/g, qty).replace(/{lowprice}/g, lowprice.toLocaleString());
         const sp = prev.capacity - totalInventory(prev.inventory);
         const canBuy = prev.cash >= lowprice && sp >= qty;
         return { ...prev, lastMessageShown: msg, eventMsg: msg, eventType: "neutral",
@@ -1320,7 +1320,7 @@ function GreyMarket() {
       if (eventType === "luckyDay") {
         SFX.ping();
         const amt = 5000 + Math.floor(Math.random() * 15000);
-        const msg = pickNew(LUCKY_DAY_MSGS, prev.lastMessageShown).replace(/\$\{windfall\}/g, amt.toLocaleString());
+        const msg = pickNew(LUCKY_DAY_MSGS, prev.lastMessageShown).replace(/\{windfall\}/g, amt.toLocaleString());
         return { ...prev, cash: prev.cash + amt, lastMessageShown: msg, eventMsg: "Lucky day. +£" + amt.toLocaleString() + ".", eventType: "good",
           popup: mkPopup("LUCKY DAY", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
@@ -1332,7 +1332,7 @@ function GreyMarket() {
       if (eventType === "badDay") {
         const dangerLoss = 1000 + Math.floor(Math.random() * 5000);
         const actualLoss = Math.min(prev.cash, dangerLoss);
-        const msg = pickNew(BAD_DAY_MSGS, prev.lastMessageShown).replace(/\$\{dangerLoss\}/g, actualLoss.toLocaleString());
+        const msg = pickNew(BAD_DAY_MSGS, prev.lastMessageShown).replace(/\{dangerLoss\}/g, actualLoss.toLocaleString());
         return { ...prev, cash: prev.cash - actualLoss, lastMessageShown: msg, eventMsg: msg, eventType: "bad",
           popup: mkPopup("BAD DAY", null, msg, [{ label: "OK", action: "dismiss" }]) };
       }
