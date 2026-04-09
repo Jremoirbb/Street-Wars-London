@@ -183,6 +183,21 @@ const JACKETS = [
   { name: "Canada Goose", capacity: 40, cost: 40000, desc: "Big coat energy.", muggingBonus: 0.08, requiresPrev: true },
 ];
 
+const ACHIEVEMENTS = [
+  { key: "nw50k", emoji: "£", label: "£50k net worth" },
+  { key: "nw100k", emoji: "💷", label: "£100k net worth" },
+  { key: "nw500k", emoji: "💰", label: "£500k net worth" },
+  { key: "nw1m", emoji: "🤑", label: "£1M net worth" },
+  { key: "debtfree", emoji: "🆓", label: "Debt free" },
+  { key: "bank50k", emoji: "🏦", label: "£50k cash" },
+  { key: "moncler", emoji: "🧥", label: "Bought Moncler" },
+  { key: "goose", emoji: "🧥", label: "Bought Canada Goose" },
+  { key: "escaped", emoji: "🏃", label: "Escaped the feds" },
+  { key: "shifty", emoji: "🐷", label: "Hired PC Shifty" },
+  { key: "tip", emoji: "🎯", label: "Profited from a tip" },
+  { key: "megaspike", emoji: "🔥", label: "Sold during mega spike" },
+];
+
 
 
 const CREDITORS = [
@@ -621,6 +636,7 @@ function getInitialState() {
     disclosed: { services: false, shop: false, priceHistory: false, cashOut: false },
     glowShown: { services: false, shop: false, priceHistory: false, cashOut: false },
     playerName: "", muted: false, creditorCarouselIndex: 0,
+    achievements: {}, achievementToast: null,
   };
 }
 
@@ -651,8 +667,12 @@ function GreyMarket() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await store.get("gm_career_stats");
+        const raw = await store.get("sw_career_stats");
         if (raw) setCareer(safeParse(raw, career));
+      } catch (e) {}
+      try {
+        const ach = await store.get("sw_achievements");
+        if (ach) setGs(p => ({ ...p, achievements: safeParse(ach, {}) }));
       } catch (e) {}
       try {
         const lb = await loadLeaderboard();
@@ -696,6 +716,12 @@ function GreyMarket() {
       return changed ? { ...p, disclosed: d } : p;
     });
   }, [gs.day, gs.cash, gs.debt, gs.phase]);
+
+  useEffect(() => {
+    if (!gs.achievementToast) return;
+    const t = setTimeout(() => setGs(p => ({ ...p, achievementToast: null })), 3000);
+    return () => clearTimeout(t);
+  }, [gs.achievementToast]);
 
   // Fade event messages
   useEffect(() => {
@@ -924,7 +950,9 @@ function GreyMarket() {
         const runBtn = { label: "🏃 Run", action: () => setGs(p => {
           if (Math.random() < 0.35) {
             const msgs = ["You legged it through " + loc + ". Lost them in the back streets. Heart pounding. You're clear.", "You ran. They chased. You were faster. Just. Gone through a fence and into the estates.", "Sprinted through " + loc + " market. Knocked over a stall. They gave up after two blocks."];
-            return { ...p, popup: null, eventMsg: pick(msgs), eventType: "good" };
+            const newAch = p.achievements.escaped ? p.achievements : { ...p.achievements, escaped: true };
+            if (!p.achievements.escaped) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
+            return { ...p, popup: null, achievements: newAch, achievementToast: !p.achievements.escaped ? "🏃 Escaped the feds" : null, eventMsg: pick(msgs), eventType: "good" };
           } else {
             const msgs = ["You ran. They were faster. Tackled in " + loc + ". They found everything.", "Tried to leg it. Didn't make it past the corner. Face on the pavement in " + loc + ".", "You bolted but they had backup. Caught you in " + loc + ". Rough handling. They took what they wanted."];
             const inv = [...p.inventory]; const avg = [...p.avgCost];
@@ -1464,6 +1492,7 @@ function GreyMarket() {
     });
     SFX.travel();
     setTimeout(() => processPostTravelRef.current(), 150);
+    setTimeout(() => checkAchievements(), 200);
   }, []);
 
   // ——— DISAPPEAR ———
@@ -1519,6 +1548,7 @@ function GreyMarket() {
         tradeMsg: "Acquired " + amt + " " + ITEMS[idx].name + " for £" + cost.toLocaleString() + "." + (alertAdd > 0 ? " Heat increased." : "") };
     });
     SFX.buy();
+    setTimeout(() => checkAchievements(), 100);
   }, [gs.prices, gs.cash, gs.capacity, gs.inventory]);
 
   const doSell = useCallback((idx, amt) => {
@@ -1529,15 +1559,53 @@ function GreyMarket() {
     const tradeHeat = 1 + Math.floor(Math.random() * 2);
     const volumeHeat = amt >= 10 ? 3 + Math.floor(Math.random() * 3) : 0;
     const alertAdd = itemHeat + tradeHeat + volumeHeat;
+    const isMegaSpike = gs.prices[idx] > ITEMS[idx].basePrice * 6;
+    const hasTip = gs.activeTip || gs.pendingNews;
     setGs(p => {
       const inv = [...p.inventory]; inv[idx] -= amt;
       const avg = [...p.avgCost]; if (inv[idx] === 0) avg[idx] = 0;
+      const newAch = { ...p.achievements };
+      let toast = null;
+      if (isMegaSpike && !newAch.megaspike) { newAch.megaspike = true; toast = "🔥 Sold during mega spike"; }
+      if (hasTip && pl > 0 && !newAch.tip) { newAch.tip = true; toast = toast || "🎯 Profited from a tip"; }
+      if (toast) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
       return { ...p, cash: p.cash + revenue, inventory: inv, avgCost: avg, qtyPopup: null,
-        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1,
+        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1, achievements: newAch,
+        achievementToast: toast,
         tradeMsg: "Sold " + amt + " " + ITEMS[idx].name + " for £" + revenue.toLocaleString() + " (" + (pl >= 0 ? "+" : "") + "£" + pl.toLocaleString() + ")." };
     });
     SFX.sell();
+    setTimeout(() => checkAchievements(), 100);
   }, [gs.prices, gs.inventory, gs.avgCost]);
+
+  const unlockAchievement = useCallback((key) => {
+    setGs(p => {
+      if (p.achievements[key]) return p;
+      const newAch = { ...p.achievements, [key]: true };
+      try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {}
+      const a = ACHIEVEMENTS.find(x => x.key === key);
+      return { ...p, achievements: newAch, achievementToast: a ? a.emoji + " " + a.label : null };
+    });
+  }, []);
+
+  const checkAchievements = useCallback(() => {
+    setGs(p => {
+      const nw = netWorth(p);
+      const unlocks = {};
+      if (nw >= 50000 && !p.achievements.nw50k) unlocks.nw50k = true;
+      if (nw >= 100000 && !p.achievements.nw100k) unlocks.nw100k = true;
+      if (nw >= 500000 && !p.achievements.nw500k) unlocks.nw500k = true;
+      if (nw >= 1000000 && !p.achievements.nw1m) unlocks.nw1m = true;
+      if (p.debt <= 0 && p.creditor && !p.achievements.debtfree) unlocks.debtfree = true;
+      if (p.cash >= 50000 && !p.achievements.bank50k) unlocks.bank50k = true;
+      if (Object.keys(unlocks).length === 0) return p;
+      const newAch = { ...p.achievements, ...unlocks };
+      try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {}
+      const firstKey = Object.keys(unlocks)[0];
+      const a = ACHIEVEMENTS.find(x => x.key === firstKey);
+      return { ...p, achievements: newAch, achievementToast: a ? a.emoji + " " + a.label : null };
+    });
+  }, []);
 
   const endGame = useCallback(() => {
     const finalWorth = netWorth(gs);
@@ -1549,7 +1617,7 @@ function GreyMarket() {
         totalTrades: prev.totalTrades + gs.tradeCount,
         totalPolice: (prev.totalPolice || 0) + gs.encounterStats.police,
       };
-      try { store.set("gm_career_stats", JSON.stringify(updated)); } catch (e) {}
+      try { store.set("sw_career_stats", JSON.stringify(updated)); } catch (e) {}
       return updated;
     });
     upsertBestScore(gs.playerName || "Anon", finalWorth);
@@ -2189,6 +2257,12 @@ function GreyMarket() {
 
   return (
     <div style={{ fontFamily: sansFont, background: T.bg, height: isMobile ? "100dvh" : "auto", minHeight: isMobile ? "auto" : "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "8px 4px 0" : "32px 8px 16px", overflow: isMobile ? "hidden" : "auto" }}>
+        {gs.achievementToast && (
+          <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
+            background: T.surface, border: "1px solid " + T.accent, borderRadius: 8, padding: "8px 16px",
+            fontFamily: font, fontSize: 13, color: T.accent, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            animation: "fadeIn 0.3s ease-out" }}>{gs.achievementToast}</div>
+        )}
       <EventPopup />
       {gs.qtyPopup && (() => {
         const q = gs.qtyPopup; const item = ITEMS[q.itemIdx]; const isBuy = q.type === "buy";
@@ -2328,9 +2402,15 @@ function GreyMarket() {
                     ) : (
                       <button style={{ ...btnStyle(canBuy), opacity: canBuy ? 1 : 0.4 }} onClick={() => {
                         if (canBuy) {
-                          setGs(p => ({ ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
-                            heat: Math.min(100, p.heat + 3),
-                            eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units. Looking flash draws attention.", eventType: "good" }));
+                          setGs(p => {
+                            const newAch = { ...p.achievements };
+                            if (i === 0 && !newAch.moncler) { newAch.moncler = true; try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
+                            if (i === 1 && !newAch.goose) { newAch.goose = true; try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
+                            const toast = i === 0 ? "🧥 Bought Moncler" : i === 1 ? "🧥 Bought Canada Goose" : null;
+                            return { ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
+                              heat: Math.min(100, p.heat + 3), achievements: newAch, achievementToast: toast,
+                              eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units. Looking flash draws attention.", eventType: "good" };
+                          });
                         }
                       }}>{"£" + j.cost.toLocaleString()}</button>
                     )}
@@ -2366,8 +2446,13 @@ function GreyMarket() {
                       ) : shiftyAvail ? (
                         <button style={{ ...btnStyle(gs.cash >= shiftyCost), opacity: gs.cash >= shiftyCost ? 1 : 0.4 }} onClick={() => {
                           if (gs.cash >= shiftyCost) {
-                            setGs(p => ({ ...p, cash: p.cash - shiftyCost, shiftyTier: p.shiftyTier + 1, shiftyUses: 2, shiftyBought: true, protectionChoice: "shifty",
-                              eventMsg: "PC Shifty — Tier " + (p.shiftyTier + 1) + ". 2 uses.", eventType: "good" }));
+                            setGs(p => {
+                              const newAch = p.shiftyTier === 0 ? { ...p.achievements, shifty: true } : p.achievements;
+                              if (p.shiftyTier === 0) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
+                              return { ...p, cash: p.cash - shiftyCost, shiftyTier: p.shiftyTier + 1, shiftyUses: 2, shiftyBought: true, protectionChoice: "shifty",
+                                achievements: newAch, achievementToast: p.shiftyTier === 0 ? "🐷 Hired PC Shifty" : null,
+                                eventMsg: "PC Shifty — Tier " + (p.shiftyTier + 1) + ". 2 uses.", eventType: "good" };
+                            });
                           }
                         }}>{"£" + shiftyCost.toLocaleString()}</button>
                       ) : gs.shiftyTier > 0 && gs.shiftyUses > 0 ? (
@@ -2470,6 +2555,7 @@ function GreyMarket() {
                 if (a > max) { setGs(p => ({ ...p, eventMsg: "Insufficient funds.", eventType: "bad" })); return; }
                 setGs(p => ({ ...p, cash: p.cash - a, debt: p.debt - a, debtPaymentsMade: p.debtPaymentsMade + 1, debtPopup: false,
                   eventMsg: "Paid £" + a.toLocaleString() + " toward debt." + (p.debt - a <= 0 ? " DEBT CLEARED." : ""), eventType: "good" }));
+                setTimeout(() => checkAchievements(), 100);
                 setDebtAmt("");
               }}>Pay</button>
             </div>
@@ -2563,6 +2649,15 @@ function GreyMarket() {
                 }}>Travel to another borough</button>
             )}
           </div>
+        </div>
+
+        {/* ACHIEVEMENT BAR */}
+        <div style={{ ...panelStyle, padding: "4px 8px", display: "flex", justifyContent: "center", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
+          {ACHIEVEMENTS.map(a => (
+            <div key={a.key} title={a.label} style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+              borderRadius: 4, background: gs.achievements[a.key] ? T.surfaceAlt : T.bg, border: "1px solid " + (gs.achievements[a.key] ? T.accent : T.border),
+              opacity: gs.achievements[a.key] ? 1 : 0.25, cursor: "default" }}>{gs.achievements[a.key] ? a.emoji : "?"}</div>
+          ))}
         </div>
 
         {/* EVENT BAR */}
