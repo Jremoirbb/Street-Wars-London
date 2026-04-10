@@ -236,7 +236,7 @@ const CREDITOR_IMAGES = {
 const CREDITOR_MSGS = {
   greezy: {
     warning: [
-      "Greezy's been asking where you're at. Seen him in a grey Audi outside the chippy. This is him being polite.",
+      "Greezy's been asking where you're at. Seen him in a grey Audi outside ChickWings. This is him being polite.",
       "Someone told you Greezy was in your ends yesterday, sitting in a tracksuit on someone's wall. He wasn't buying groceries.",
       "Your phone buzzes. Unknown number. 'Yo, Greezy wants his P's. Don't make him come find you.' Text deletes itself.",
     ],
@@ -531,7 +531,7 @@ function getInitialState() {
     shopPopup: false, servicesPopup: false, priceHistoryPopup: false,
     debtPopup: false, eventMsg: null, eventType: "neutral",
     eventFades: false, eventFaded: false,
-    tradeMsg: null, activeTip: null, pendingNews: null,
+    tradeMsg: null, pendingNews: null,
     lastMessageShown: "",
     creditor: null, debt: 0, debtInterest: 0,
     creditorStage: 0, creditorNextDay: 999,
@@ -1312,27 +1312,14 @@ function GreyMarket() {
       const stagnationMsg = (!changedBorough && prev.turnsInBorough >= 3) ? " You've been here too long. People are noticing." : "";
 
       let tipMsg = null;
-      if (prev.activeTip && prev.activeTip.borough === rIdx && prev.activeTip.location === cIdx) {
-        const tip = prev.activeTip;
-        if (tip.type === "expensive") {
-          newPrices[tip.itemIdx] = Math.round(ITEMS[tip.itemIdx].basePrice * spikeMultiplier(ITEMS[tip.itemIdx].basePrice, "tip"));
-          tipMsg = "Intel confirmed. " + ITEMS[tip.itemIdx].name + " at premium prices.";
-        } else {
-          newPrices[tip.itemIdx] = Math.max(1, Math.round(ITEMS[tip.itemIdx].basePrice * (0.05 + Math.random() * 0.15)));
-          tipMsg = "Intel confirmed. " + ITEMS[tip.itemIdx].name + " at distressed prices.";
-        }
-        newAvail[tip.itemIdx] = true;
-      }
-
-      let newsMsg = null;
       if (prev.pendingNews && prev.pendingNews.borough === rIdx && prev.pendingNews.location === cIdx) {
         const news = prev.pendingNews;
         if (news.type === "spike") {
-          newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * spikeMultiplier(ITEMS[news.itemIdx].basePrice, "news"));
-          newsMsg = "Intel confirmed. " + ITEMS[news.itemIdx].name + " prices elevated.";
+          newPrices[news.itemIdx] = Math.round(ITEMS[news.itemIdx].basePrice * spikeMultiplier(ITEMS[news.itemIdx].basePrice, "tip"));
+          tipMsg = "Tip confirmed. " + ITEMS[news.itemIdx].name + " prices are peak here.";
         } else {
           newPrices[news.itemIdx] = Math.max(1, Math.round(ITEMS[news.itemIdx].basePrice * 0.1));
-          newsMsg = "Intel confirmed. " + ITEMS[news.itemIdx].name + " prices collapsed.";
+          tipMsg = "Tip confirmed. " + ITEMS[news.itemIdx].name + " prices have crashed here.";
         }
         newAvail[news.itemIdx] = true;
       }
@@ -1340,7 +1327,7 @@ function GreyMarket() {
       const newBlocked = {};
       for (const [k, v] of Object.entries(prev.blockedLocations)) { if (v > 1) newBlocked[k] = v - 1; }
 
-      const arrivalMsg = tipMsg || newsMsg;
+      const arrivalMsg = tipMsg;
       const transitNote = changedBorough ? " Transit: 2 days." : "";
       const debtMsg = newDebt > prev.debt ? " Debt: +£" + (newDebt - prev.debt).toLocaleString() + "." : "";
 
@@ -1351,7 +1338,7 @@ function GreyMarket() {
         priceHistory: [...prev.priceHistory.slice(-5), histEntry],
         heat: newHeat, turnsInBorough: changedBorough ? 0 : prev.turnsInBorough + 1,
         blockedLocations: newBlocked,
-        activeTip: null, pendingNews: null, tradeMsg: null,
+        pendingNews: null, tradeMsg: null,
         popup: null, travelPopup: false, travelBorough: null,
         nurseCooldown: Math.max(0, prev.nurseCooldown - daysCost),
         layLowCooldown: Math.max(0, prev.layLowCooldown - daysCost),
@@ -1432,7 +1419,7 @@ function GreyMarket() {
     const volumeHeat = amt >= 10 ? 3 + Math.floor(Math.random() * 3) : 0;
     const alertAdd = itemHeat + tradeHeat + volumeHeat;
     const isMegaSpike = gs.prices[idx] > ITEMS[idx].basePrice * 6;
-    const hasTip = gs.activeTip || gs.pendingNews;
+    const hasTip = gs.pendingNews;
     setGs(p => {
       const inv = [...p.inventory]; inv[idx] -= amt;
       const avg = [...p.avgCost]; if (inv[idx] === 0) avg[idx] = 0;
