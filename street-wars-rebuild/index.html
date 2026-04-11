@@ -181,21 +181,6 @@ const JACKETS = [
   { name: "Canada Goose", capacity: 40, cost: 40000, desc: "Big coat energy.", muggingBonus: 0.08, requiresPrev: true },
 ];
 
-const ACHIEVEMENTS = [
-  { key: "nw50k", emoji: "£", label: "£50k net worth" },
-  { key: "nw100k", emoji: "💷", label: "£100k net worth" },
-  { key: "nw500k", emoji: "💰", label: "£500k net worth" },
-  { key: "nw1m", emoji: "🤑", label: "£1M net worth" },
-  { key: "debtfree", emoji: "🆓", label: "Debt free" },
-  { key: "bank50k", emoji: "🏦", label: "£50k cash" },
-  { key: "moncler", emoji: "🧥", label: "Bought Moncler" },
-  { key: "goose", emoji: "🧥", label: "Bought Canada Goose" },
-  { key: "escaped", emoji: "🏃", label: "Escaped the feds" },
-  { key: "shifty", emoji: "🐷", label: "Hired PC Shifty" },
-  { key: "tip", emoji: "🎯", label: "Profited from a tip" },
-  { key: "megaspike", emoji: "🔥", label: "Sold during mega spike" },
-];
-
 
 
 const CREDITORS = [
@@ -515,9 +500,8 @@ function getInitialState() {
     phase: "title", day: 1, cash: 5000, bank: 0,
     borough, location: Math.floor(Math.random() * 6),
     capacity: 100, jacketLevel: 0,
-    shiftyTier: 0, shiftyUses: 0, shiftyCooldown: 0, shiftyBought: false,
-    jamalActive: false, jamalBlocks: 0, jamalGhost: 0, jamalBought: false,
-    protectionChoice: null,
+    shiftyActive: false, shiftyUses: 0, shiftyCooldown: 0,
+    jamalActive: false, jamalBlocks: 0, jamalGhost: 0,
     inventory: ITEMS.map(() => 0), avgCost: ITEMS.map(() => 0),
     prices, prevPrices: prices, itemAvail,
     priceHistory: [],
@@ -538,18 +522,17 @@ function getInitialState() {
     selectedCreditor: null,
     health: 100, medicalCooldown: 0,
     debtPaymentsMade: 0,
-    cashedOut: false, selectedItem: null, showTutorial: false, tutorialSeen: { header: false, location: false, market: false, buttons: false },
-    disclosed: { services: false, shop: false, priceHistory: false, cashOut: false },
-    glowShown: { services: false, shop: false, priceHistory: false, cashOut: false },
+    selectedItem: null, showTutorial: false, tutorialSeen: { header: false, location: false, market: false, buttons: false },
+    disclosed: { services: false, shop: false, priceHistory: false },
+    glowShown: { services: false, shop: false, priceHistory: false },
     playerName: "", muted: false, creditorCarouselIndex: 0,
-    achievements: {}, achievementToast: null,
   };
 }
 
 function dayMsg(day) {
   if (day === 25) return "5 days left. Start selling up.";
   if (day === 27) return "3 days left. Move what you've got.";
-  if (day === 29) return "Last chance to travel. Tomorrow you cash out.";
+  if (day === 29) return "Last chance to travel. Tomorrow it's over.";
   if (day === 30) return "LAST DAY. Sell everything. This is it.";
   return null;
 }
@@ -575,10 +558,6 @@ function GreyMarket() {
       try {
         const raw = await store.get("sw_career_stats");
         if (raw) setCareer(safeParse(raw, career));
-      } catch (e) {}
-      try {
-        const ach = await store.get("sw_achievements");
-        if (ach) setGs(p => ({ ...p, achievements: safeParse(ach, {}) }));
       } catch (e) {}
       try {
         const lb = await loadLeaderboard();
@@ -615,20 +594,12 @@ function GreyMarket() {
     setGs(p => {
       const d = { ...p.disclosed };
       let changed = false;
-      if (!d.services && ((p.heat > 15 && !p.newSimUsed) || p.health < 100)) { d.services = true; changed = true; }
-      if (!d.shop && p.cash >= 15000) { d.shop = true; changed = true; }
       if (!d.priceHistory && p.day > 1) { d.priceHistory = true; changed = true; }
-      if (!d.cashOut && (p.debt <= 0 || p.day >= MAX_DAYS)) { d.cashOut = true; changed = true; }
+
       return changed ? { ...p, disclosed: d } : p;
     });
   }, [gs.day, gs.cash, gs.debt, gs.phase]);
 
-  useEffect(() => {
-    if (!gs.achievementToast) return;
-    SFX.ping();
-    const t = setTimeout(() => setGs(p => ({ ...p, achievementToast: null })), 3000);
-    return () => clearTimeout(t);
-  }, [gs.achievementToast]);
 
   // Fade event messages
   useEffect(() => {
@@ -841,15 +812,14 @@ function GreyMarket() {
         const totalInv = totalInventory(prev.inventory);
 
         // === Helper: Mention Shifty button ===
-        const shiftyBtn = (prev.shiftyTier > 0 && prev.shiftyUses > 0 && prev.shiftyCooldown === 0 && totalInv > 0) ? {
+        const shiftyBtn = (prev.shiftyActive && prev.shiftyUses > 0 && prev.shiftyCooldown === 0 && totalInv > 0) ? {
           label: "🐷 Mention Shifty", primary: true, action: () => setGs(p => {
             const cd = 3 + Math.floor(Math.random() * 2);
             const ul = p.shiftyUses - 1;
-            const gone = ul === 0 && p.shiftyTier >= 3;
-            const reup = ul === 0 && p.shiftyTier < 3;
-            const st = gone ? " Shifty's gone. Used up all his favours." : reup ? " Shifty needs re-upping. Visit the Shop." : " " + ul + " uses left.";
+            const reup = ul === 0;
+            const st = reup ? " Shifty's done for now. Hire him again from Services." : " " + ul + " uses left.";
             const msgs = ["You dropped Shifty's name. The officers looked at each other. 'Alright, on your way.' Just like that.", "One mention of Shifty and the whole thing changed. 'We haven't seen you.' They walked away.", "Shifty's name did the work. Feds suddenly had somewhere else to be. You walk."];
-            return { ...p, shiftyUses: ul, shiftyCooldown: cd, heat: Math.max(0, p.heat - 5), popup: null,
+            return { ...p, shiftyUses: ul, shiftyActive: ul > 0, shiftyCooldown: cd, heat: Math.max(0, p.heat - 5), popup: null,
               eventMsg: pick(msgs) + st, eventType: "good" };
           })
         } : null;
@@ -858,9 +828,7 @@ function GreyMarket() {
         const runBtn = { label: "🏃 Run", action: () => setGs(p => {
           if (Math.random() < 0.35) {
             const msgs = ["You legged it through " + loc + ". Lost them in the back streets. Heart pounding. You're clear.", "You ran. They chased. You were faster. Just. Gone through a fence and into the estates.", "Sprinted through " + loc + " market. Knocked over a stall. They gave up after two blocks."];
-            const newAch = p.achievements.escaped ? p.achievements : { ...p.achievements, escaped: true };
-            if (!p.achievements.escaped) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
-            return { ...p, popup: null, achievements: newAch, achievementToast: !p.achievements.escaped ? "🏃 Escaped the feds" : null, eventMsg: pick(msgs), eventType: "good" };
+            return { ...p, popup: null, eventMsg: pick(msgs), eventType: "good" };
           } else {
             const msgs = ["You ran. They were faster. Tackled in " + loc + ". They found everything.", "Tried to leg it. Didn't make it past the corner. Face on the pavement in " + loc + ".", "You bolted but they had backup. Caught you in " + loc + ". Rough handling. They took what they wanted."];
             const inv = [...p.inventory]; const avg = [...p.avgCost];
@@ -1055,8 +1023,8 @@ function GreyMarket() {
         const boroughName = BOROUGHS[prev.borough].name;
         const inv = prev.inventory.map(() => 0); const avg = prev.avgCost.map(() => 0);
         let raidType;
-        if (prev.shiftyTier > 0 || prev.shiftyBought) raidType = "rivals";
-        else if (prev.jamalActive || prev.jamalBought) raidType = "police";
+        if (prev.shiftyActive) raidType = "rivals";
+        else if (prev.jamalActive) raidType = "police";
         else raidType = Math.random() < 0.5 ? "rivals" : "police";
         if (raidType === "police") {
           const heatGain = 10 + Math.floor(Math.random() * 6);
@@ -1351,7 +1319,6 @@ function GreyMarket() {
     });
     SFX.travel();
     setTimeout(() => processPostTravelRef.current(), 150);
-    setTimeout(() => checkAchievements(), 200);
   }, []);
 
   // ——— DISAPPEAR ———
@@ -1407,7 +1374,6 @@ function GreyMarket() {
         tradeMsg: "Bought " + amt + " " + ITEMS[idx].name + " for £" + cost.toLocaleString() + "." + (alertAdd > 0 ? " Heat increased." : "") };
     });
     SFX.buy();
-    setTimeout(() => checkAchievements(), 100);
   }, [gs.prices, gs.cash, gs.capacity, gs.inventory]);
 
   const doSell = useCallback((idx, amt) => {
@@ -1418,53 +1384,16 @@ function GreyMarket() {
     const tradeHeat = 1 + Math.floor(Math.random() * 2);
     const volumeHeat = amt >= 10 ? 3 + Math.floor(Math.random() * 3) : 0;
     const alertAdd = itemHeat + tradeHeat + volumeHeat;
-    const isMegaSpike = gs.prices[idx] > ITEMS[idx].basePrice * 6;
-    const hasTip = gs.pendingNews;
     setGs(p => {
       const inv = [...p.inventory]; inv[idx] -= amt;
       const avg = [...p.avgCost]; if (inv[idx] === 0) avg[idx] = 0;
-      const newAch = { ...p.achievements };
-      let toast = null;
-      if (isMegaSpike && !newAch.megaspike) { newAch.megaspike = true; toast = "🔥 Sold during mega spike"; }
-      if (hasTip && pl > 0 && !newAch.tip) { newAch.tip = true; toast = toast || "🎯 Profited from a tip"; }
-      if (toast) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
       return { ...p, cash: p.cash + revenue, inventory: inv, avgCost: avg, qtyPopup: null,
-        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1, achievements: newAch,
-        achievementToast: toast,
+        heat: Math.min(100, p.heat + alertAdd), tradeCount: p.tradeCount + 1,
         tradeMsg: "Sold " + amt + " " + ITEMS[idx].name + " for £" + revenue.toLocaleString() + " (" + (pl >= 0 ? "+" : "") + "£" + pl.toLocaleString() + ")." };
     });
     SFX.sell();
-    setTimeout(() => checkAchievements(), 100);
   }, [gs.prices, gs.inventory, gs.avgCost]);
 
-  const unlockAchievement = useCallback((key) => {
-    setGs(p => {
-      if (p.achievements[key]) return p;
-      const newAch = { ...p.achievements, [key]: true };
-      try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {}
-      const a = ACHIEVEMENTS.find(x => x.key === key);
-      return { ...p, achievements: newAch, achievementToast: a ? a.emoji + " " + a.label : null };
-    });
-  }, []);
-
-  const checkAchievements = useCallback(() => {
-    setGs(p => {
-      const nw = netWorth(p);
-      const unlocks = {};
-      if (nw >= 50000 && !p.achievements.nw50k) unlocks.nw50k = true;
-      if (nw >= 100000 && !p.achievements.nw100k) unlocks.nw100k = true;
-      if (nw >= 500000 && !p.achievements.nw500k) unlocks.nw500k = true;
-      if (nw >= 1000000 && !p.achievements.nw1m) unlocks.nw1m = true;
-      if (p.debt <= 0 && p.creditor && !p.achievements.debtfree) unlocks.debtfree = true;
-      if (p.cash >= 50000 && !p.achievements.bank50k) unlocks.bank50k = true;
-      if (Object.keys(unlocks).length === 0) return p;
-      const newAch = { ...p.achievements, ...unlocks };
-      try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {}
-      const firstKey = Object.keys(unlocks)[0];
-      const a = ACHIEVEMENTS.find(x => x.key === firstKey);
-      return { ...p, achievements: newAch, achievementToast: a ? a.emoji + " " + a.label : null };
-    });
-  }, []);
 
   const endGame = useCallback(() => {
     const finalWorth = netWorth(gs);
@@ -2032,20 +1961,8 @@ function GreyMarket() {
     const w = netWorth(gs);
     const rank = leaderboard.findIndex(s => s.name === gs.playerName) + 1;
     const tierLabel = w >= 100000 ? "Untouchable" : w >= 50000 ? "Top boy" : w >= 20000 ? "Solid" : w >= 0 ? "Survived" : "Broke";
-    const earlyExit = gs.cashedOut && gs.day < MAX_DAYS;
-    const headerText = earlyExit ? "WALKED AWAY" : "FINAL BALANCE";
-    const summaryText = (earlyExit
-      ? (w >= 50000 ? pick([
-          "You knew when to stop. Most don't. That's why most end up nicked or hospitalised.",
-          "You walked away with £" + w.toLocaleString() + ". The smart ones always do.",
-        ]) : w >= 20000 ? pick([
-          "You left money on the table. But you also left with your freedom and your health.",
-          "You got out. Not at the top — but before the fall.",
-        ]) : pick([
-          "You played it safe and left with what you had. Nobody will write stories about you. Or warrants.",
-          "You got out early with barely enough to show for it. Alive and free. That's worth something.",
-        ]))
-      : w >= 100000 ? pick([
+    const headerText = "FINAL BALANCE";
+    const summaryText = (w >= 100000 ? pick([
           "You made more P's in 30 days than most people see in a lifetime. New phone, new ends, new everything.",
           "£" + w.toLocaleString() + ". Enough to disappear. New name, new postcode. Nobody on the estate will see you again.",
           "£" + w.toLocaleString() + " in 30 days. The money's clean now. Laundered through three bookies and a car wash. You're out.",
@@ -2071,7 +1988,7 @@ function GreyMarket() {
       <div style={{ fontFamily: sansFont, background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ ...panelStyle, maxWidth: 500, width: "92%", padding: isMobile ? "24px 16px" : "32px", textAlign: "center" }}>
           <div style={{ fontSize: 11, letterSpacing: 3, color: T.textMuted, textTransform: "uppercase", marginBottom: 8 }}>{headerText}</div>
-          <div style={{ fontFamily: sansFont, fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>{gs.playerName}{earlyExit ? " — Day " + gs.day + "/" + MAX_DAYS : ""}</div>
+          <div style={{ fontFamily: sansFont, fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 4 }}>{gs.playerName}</div>
           <div style={{ fontFamily: font, fontSize: 36, fontWeight: 800, color: w >= 0 ? T.green : T.red, marginBottom: 8 }}>£{w.toLocaleString()}</div>
           <div style={{ fontSize: 13, color: T.textDim, marginBottom: 24 }}>
             {summaryText}
@@ -2114,12 +2031,6 @@ function GreyMarket() {
 
   return (
     <div style={{ fontFamily: sansFont, background: T.bg, height: isMobile ? "100dvh" : "auto", minHeight: isMobile ? "auto" : "100vh", display: "flex", flexDirection: "column", alignItems: "center", padding: isMobile ? "8px 4px 0" : "32px 8px 16px", overflow: isMobile ? "hidden" : "auto" }}>
-        {gs.achievementToast && (
-          <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 9999,
-            background: T.surface, border: "1px solid " + T.accent, borderRadius: 8, padding: "8px 16px",
-            fontFamily: font, fontSize: 13, color: T.accent, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
-            animation: "fadeIn 0.3s ease-out" }}>{gs.achievementToast}</div>
-        )}
       <EventPopup />
       {gs.qtyPopup && (() => {
         const q = gs.qtyPopup; const item = ITEMS[q.itemIdx]; const isBuy = q.type === "buy";
@@ -2177,57 +2088,82 @@ function GreyMarket() {
       {/* SERVICES POPUP */}
       {gs.servicesPopup && (
         <Overlay onClose={() => setGs(p => ({ ...p, servicesPopup: false }))}>
-          <ModalBox title="SERVICES" width={380}>
+          <ModalBox title="SERVICES" width={400}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {!gs.newSimUsed && (
-                <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>📱 New SIM</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.textDim, marginTop: 2 }}>New number. Burn the old one.</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.accent, marginTop: 2 }}>{"Heat " + String.fromCharCode(8722) + "20%"}</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.amber, marginTop: 2 }}>One use only</div>
-                    </div>
-                    <button style={{ ...btnStyle(gs.cash >= 3000), opacity: gs.cash >= 3000 ? 1 : 0.4, whiteSpace: "nowrap" }}
-                      onClick={() => {
-                        if (gs.cash >= 3000) {
-                          setGs(p => ({ ...p, cash: p.cash - 3000, heat: Math.max(0, p.heat - 20), newSimUsed: true, servicesPopup: false,
-                            eventMsg: "New number. New you. For now.", eventType: "good" }));
-                        }
-                      }}>£3,000</button>
+                <div style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>📱 New SIM</div>
+                    <div style={{ fontFamily: font, fontSize: 10, color: T.textDim }}>New number. Burn the old one. Heat -20%</div>
+                    <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>One use only</div>
                   </div>
+                  <button style={{ ...btnStyle(gs.cash >= 3000), opacity: gs.cash >= 3000 ? 1 : 0.4 }}
+                    onClick={() => { if (gs.cash >= 3000) setGs(p => ({ ...p, cash: p.cash - 3000, heat: Math.max(0, p.heat - 20), newSimUsed: true, servicesPopup: false, eventMsg: "New number. New you. For now.", eventType: "good" })); }}>£3,000</button>
                 </div>
               )}
-              {gs.health < 100 && (
-                <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {gs.health < 100 && (() => {
+                const nurseCost = Math.max(500, Math.floor(gs.cash * 0.15));
+                return (
+                  <div style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>🏥 The Nurse</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.textDim, marginTop: 2 }}>Ellie. Off the books. No questions.</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.green, marginTop: 2 }}>Health +30%</div>
-                      {gs.nurseCooldown > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber, marginTop: 2 }}>{"Available in " + gs.nurseCooldown + " days"}</div>}
+                      <div style={{ fontFamily: font, fontSize: 10, color: T.textDim }}>Ellie. Off the books. Health +30%</div>
+                      {gs.nurseCooldown > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"Available in " + gs.nurseCooldown + " days"}</div>}
                     </div>
                     {gs.nurseCooldown > 0 ? (
-                      <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, whiteSpace: "nowrap" }}>{"Cooldown: " + gs.nurseCooldown}</span>
-                    ) : (() => {
-                      const nurseCost = Math.max(500, Math.floor(gs.cash * 0.15));
-                      return (
-                        <button style={{ ...btnStyle(gs.cash >= nurseCost), opacity: gs.cash >= nurseCost ? 1 : 0.4, whiteSpace: "nowrap" }}
-                          onClick={() => {
-                            if (gs.cash >= nurseCost) {
-                              const msgs = ["Ellie meets you round the back of the ward. Twenty minutes, no paperwork. You'll live.", "Ellie says this is the third time this month. The price just went up.", "Ellie patches you up between shifts. Says if you come back looking like this again she's done."];
-                              setGs(p => ({ ...p, cash: p.cash - nurseCost, health: Math.min(100, p.health + 30), nurseCooldown: 3, servicesPopup: false,
-                                eventMsg: pick(msgs), eventType: "good" }));
-                            }
-                          }}>{"£" + nurseCost.toLocaleString()}</button>
-                      );
-                    })()}
+                      <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>Wait</span>
+                    ) : (
+                      <button style={{ ...btnStyle(gs.cash >= nurseCost), opacity: gs.cash >= nurseCost ? 1 : 0.4 }}
+                        onClick={() => { if (gs.cash >= nurseCost) { const msgs = ["Ellie meets you round the back of the ward. Twenty minutes, no paperwork. You'll live.", "Ellie says this is the third time this month. The price just went up.", "Ellie patches you up between shifts. Says if you come back looking like this again she's done."]; setGs(p => ({ ...p, cash: p.cash - nurseCost, health: Math.min(100, p.health + 30), nurseCooldown: 3, servicesPopup: false, eventMsg: pick(msgs), eventType: "good" })); } }}>{"£" + nurseCost.toLocaleString()}</button>
+                    )}
                   </div>
-                </div>
-              )}
-              {gs.newSimUsed && gs.health >= 100 && (
-                <div style={{ fontFamily: font, fontSize: 12, color: T.textMuted, textAlign: "center", padding: 16 }}>No services available right now.</div>
-              )}
+                );
+              })()}
+              {(() => {
+                const protCost = Math.max(2000, Math.round(netWorth(gs) * 0.08 / 1000) * 1000);
+                const shiftyLocked = gs.jamalActive;
+                const jamalLocked = gs.shiftyActive && gs.shiftyUses > 0;
+                return (
+                  <>
+                    <div style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                      onClick={() => {
+                        if (shiftyLocked) { setGs(p => ({ ...p, eventMsg: "Shifty doesn't work with Jamal. Wait till Jamal's done.", eventType: "bad" })); return; }
+                        if (gs.shiftyActive && gs.shiftyUses > 0) { setGs(p => ({ ...p, eventMsg: "Shifty's already on it. " + gs.shiftyUses + " uses left.", eventType: "neutral" })); return; }
+                        if (gs.cash < protCost) { setGs(p => ({ ...p, eventMsg: "Not enough P's. Need £" + protCost.toLocaleString() + ".", eventType: "bad" })); return; }
+                        setGs(p => ({ ...p, cash: p.cash - protCost, shiftyActive: true, shiftyUses: 2, servicesPopup: false,
+                          eventMsg: "PC Shifty hired. 2 uses. Mention his name when feds stop you.", eventType: "good" }));
+                      }}>
+                      <div>
+                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>🐷 PC Shifty</div>
+                        <div style={{ fontFamily: font, fontSize: 10, color: T.textDim }}>Anti-police. 2 uses per hire.</div>
+                        {gs.shiftyActive && gs.shiftyUses > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.green }}>{"Active — " + gs.shiftyUses + " uses" + (gs.shiftyCooldown > 0 ? " · Cooldown: " + gs.shiftyCooldown + "d" : "")}</div>}
+                      </div>
+                      <span style={{ fontFamily: font, fontSize: 11, color: gs.shiftyActive && gs.shiftyUses > 0 ? T.green : T.accent }}>
+                        {gs.shiftyActive && gs.shiftyUses > 0 ? "Hired" : "£" + protCost.toLocaleString()}
+                      </span>
+                    </div>
+                    <div style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                      onClick={() => {
+                        if (jamalLocked) { setGs(p => ({ ...p, eventMsg: "Jamal won't work with you while you're running with Shifty.", eventType: "bad" })); return; }
+                        if (gs.jamalActive) { setGs(p => ({ ...p, eventMsg: "Jamal's already on it.", eventType: "neutral" })); return; }
+                        if (gs.jamalGhost > 0) { setGs(p => ({ ...p, eventMsg: "Jamal's ghost for " + gs.jamalGhost + " more days.", eventType: "bad" })); return; }
+                        if (gs.cash < protCost) { setGs(p => ({ ...p, eventMsg: "Not enough P's. Need £" + protCost.toLocaleString() + ".", eventType: "bad" })); return; }
+                        setGs(p => ({ ...p, cash: p.cash - protCost, jamalActive: true, jamalBlocks: 2, servicesPopup: false,
+                          eventMsg: "Jamal's on it. You're covered.", eventType: "good" }));
+                      }}>
+                      <div>
+                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>💪 Jamal</div>
+                        <div style={{ fontFamily: font, fontSize: 10, color: T.textDim }}>Anti-mugging. Blocks 2 attacks.</div>
+                        {gs.jamalActive && <div style={{ fontFamily: font, fontSize: 10, color: T.green }}>Active</div>}
+                        {gs.jamalGhost > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"Ghost for " + gs.jamalGhost + " days"}</div>}
+                      </div>
+                      <span style={{ fontFamily: font, fontSize: 11, color: gs.jamalActive ? T.green : T.accent }}>
+                        {gs.jamalActive ? "Hired" : gs.jamalGhost > 0 ? "Ghost" : "£" + protCost.toLocaleString()}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
               <button style={btnStyle(false)} onClick={() => setGs(p => ({ ...p, servicesPopup: false }))}>Close</button>
@@ -2238,19 +2174,18 @@ function GreyMarket() {
       {/* SHOP POPUP */}
       {gs.shopPopup && (
         <Overlay onClose={() => setGs(p => ({ ...p, shopPopup: false }))}>
-          <ModalBox title="SHOP" width={440}>
+          <ModalBox title="SHOP" width={380}>
             <div style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>CAPACITY UPGRADES</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {JACKETS.map((j, i) => {
                 const owned = gs.jacketLevel > i;
                 const canBuy = !owned && (i === 0 || gs.jacketLevel >= i) && gs.cash >= j.cost;
                 const locked = i > 0 && gs.jacketLevel < i;
                 return (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: owned ? T.surfaceAlt : T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: owned ? T.surfaceAlt : T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
                     <div>
                       <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{j.name}</div>
                       <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>{"+" + j.capacity + " capacity · " + j.desc}</div>
-                      <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"+" + Math.round(j.muggingBonus * 100) + "% mugging risk"}</div>
                     </div>
                     {owned ? (
                       <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Owned</span>
@@ -2259,15 +2194,9 @@ function GreyMarket() {
                     ) : (
                       <button style={{ ...btnStyle(canBuy), opacity: canBuy ? 1 : 0.4 }} onClick={() => {
                         if (canBuy) {
-                          setGs(p => {
-                            const newAch = { ...p.achievements };
-                            if (i === 0 && !newAch.moncler) { newAch.moncler = true; try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
-                            if (i === 1 && !newAch.goose) { newAch.goose = true; try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
-                            const toast = i === 0 ? "🧥 Bought Moncler" : i === 1 ? "🧥 Bought Canada Goose" : null;
-                            return { ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
-                              heat: Math.min(100, p.heat + 3), achievements: newAch, achievementToast: toast,
-                              eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units. Looking flash draws attention.", eventType: "good" };
-                          });
+                          setGs(p => ({ ...p, cash: p.cash - j.cost, capacity: p.capacity + j.capacity, jacketLevel: i + 1,
+                            heat: Math.min(100, p.heat + 3),
+                            eventMsg: j.name + " acquired. Capacity: " + (p.capacity + j.capacity) + " units. Looking flash draws attention.", eventType: "good" }));
                         }
                       }}>{"£" + j.cost.toLocaleString()}</button>
                     )}
@@ -2275,79 +2204,6 @@ function GreyMarket() {
                 );
               })}
             </div>
-            <div style={{ fontFamily: font, fontSize: 10, fontWeight: 700, color: T.accent, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>PROTECTION</div>
-            {(() => {
-              const nw = netWorth(gs);
-              const shiftyCost = gs.shiftyTier === 0 ? Math.max(5000, Math.floor(nw * 0.05)) : gs.shiftyTier === 1 ? Math.max(15000, Math.floor(nw * 0.10)) : Math.max(30000, Math.floor(nw * 0.15));
-              const jamalCost = Math.max(5000, Math.floor(gs.cash * 0.15));
-              const shiftyLocked = gs.protectionChoice === "jamal";
-              const jamalLocked = gs.protectionChoice === "shifty";
-              const shiftyMaxed = gs.shiftyTier >= 3;
-              const shiftyNeedsReup = gs.shiftyTier > 0 && gs.shiftyUses === 0 && !shiftyMaxed;
-              const shiftyAvail = !shiftyLocked && !shiftyMaxed && (gs.shiftyTier === 0 || shiftyNeedsReup);
-              const jamalAvail = !jamalLocked && !gs.jamalActive && gs.jamalGhost === 0;
-              return (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                  <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{"🐷 PC Shifty"}{gs.shiftyTier > 0 ? " (Tier " + gs.shiftyTier + ")" : ""}</div>
-                        <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Anti-police. Mentions get you out of stops.</div>
-                        {gs.shiftyTier > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.accent }}>{"Uses: " + gs.shiftyUses + (gs.shiftyCooldown > 0 ? " · Cooldown: " + gs.shiftyCooldown + " days" : "")}</div>}
-                        <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>+8% mugging risk once bought</div>
-                      </div>
-                      {shiftyLocked ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, textAlign: "right", maxWidth: 120 }}>Shifty ain't working with Jamal</span>
-                      ) : shiftyMaxed ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>Gone</span>
-                      ) : shiftyAvail ? (
-                        <button style={{ ...btnStyle(gs.cash >= shiftyCost), opacity: gs.cash >= shiftyCost ? 1 : 0.4 }} onClick={() => {
-                          if (gs.cash >= shiftyCost) {
-                            setGs(p => {
-                              const newAch = p.shiftyTier === 0 ? { ...p.achievements, shifty: true } : p.achievements;
-                              if (p.shiftyTier === 0) { try { store.set("sw_achievements", JSON.stringify(newAch)); } catch (e) {} }
-                              return { ...p, cash: p.cash - shiftyCost, shiftyTier: p.shiftyTier + 1, shiftyUses: 2, shiftyBought: true, protectionChoice: "shifty",
-                                achievements: newAch, achievementToast: p.shiftyTier === 0 ? "🐷 Hired PC Shifty" : null,
-                                eventMsg: "PC Shifty — Tier " + (p.shiftyTier + 1) + ". 2 uses.", eventType: "good" };
-                            });
-                          }
-                        }}>{"£" + shiftyCost.toLocaleString()}</button>
-                      ) : gs.shiftyTier > 0 && gs.shiftyUses > 0 ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.green }}>Active</span>
-                      ) : (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>—</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ padding: "10px 12px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontFamily: sansFont, fontSize: 13, fontWeight: 700, color: T.text }}>{"💪 Jamal"}{gs.jamalActive ? " (Active)" : ""}</div>
-                        <div style={{ fontFamily: font, fontSize: 11, color: T.textDim }}>Anti-mugging. Blocks attacks automatically.</div>
-                        {gs.jamalGhost > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"Ghost for " + gs.jamalGhost + " more days"}</div>}
-                        <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>+8% police risk while active</div>
-                      </div>
-                      {jamalLocked ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted, textAlign: "right", maxWidth: 120 }}>Jamal don't roll with snitches</span>
-                      ) : gs.jamalActive ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.green }}>Hired</span>
-                      ) : jamalAvail ? (
-                        <button style={{ ...btnStyle(gs.cash >= jamalCost), opacity: gs.cash >= jamalCost ? 1 : 0.4 }} onClick={() => {
-                          if (gs.cash >= jamalCost) {
-                            setGs(p => ({ ...p, cash: p.cash - jamalCost, jamalActive: true, jamalBlocks: 2, jamalBought: true, protectionChoice: "jamal",
-                              eventMsg: "Jamal's on it. You're covered.", eventType: "good" }));
-                          }
-                        }}>{"£" + jamalCost.toLocaleString()}</button>
-                      ) : gs.jamalGhost > 0 ? (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>Ghost</span>
-                      ) : (
-                        <span style={{ fontFamily: font, fontSize: 10, color: T.textMuted }}>—</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <button style={btnStyle(false)} onClick={() => setGs(p => ({ ...p, shopPopup: false }))}>Close</button>
             </div>
@@ -2412,8 +2268,7 @@ function GreyMarket() {
                 if (a > max) { setGs(p => ({ ...p, eventMsg: "Not enough P's.", eventType: "bad" })); return; }
                 setGs(p => ({ ...p, cash: p.cash - a, debt: p.debt - a, debtPaymentsMade: p.debtPaymentsMade + 1, debtPopup: false,
                   eventMsg: "Paid £" + a.toLocaleString() + " off the debt." + (p.debt - a <= 0 ? " DEBT CLEARED. You're free." : ""), eventType: "good" }));
-                setTimeout(() => checkAchievements(), 100);
-                setDebtAmt("");
+                            setDebtAmt("");
               }}>Pay</button>
             </div>
           </ModalBox>
@@ -2427,6 +2282,7 @@ function GreyMarket() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
               <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
               <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+              <span style={{ fontSize: 10, cursor: "pointer", color: T.textMuted, marginLeft: 4 }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>↺</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
               <span style={{ fontFamily: font, fontSize: 11 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
@@ -2447,6 +2303,24 @@ function GreyMarket() {
               </div>
               <span style={{ fontFamily: font, fontSize: 9, color: healthColor }}>{gs.health}%</span>
             </div>}
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
+              <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                onClick={() => {
+                  const bankBal = gs.bank || 0;
+                  setGs(p => ({ ...p, popup: mkPopup("BANK", null,
+                    "Stash your P's somewhere safe. Can't be touched.\n\nBank: £" + bankBal.toLocaleString() + "\nCash: £" + p.cash.toLocaleString(),
+                    [
+                      p.cash >= 1000 ? { label: "Deposit £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 1000, bank: (p2.bank || 0) + 1000, popup: null, eventMsg: "Deposited £1,000.", eventType: "neutral" })) } : null,
+                      p.cash >= 5000 ? { label: "Deposit £5k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 5000, bank: (p2.bank || 0) + 5000, popup: null, eventMsg: "Deposited £5,000.", eventType: "neutral" })) } : null,
+                      p.cash > 0 ? { label: "Deposit All", action: () => setGs(p2 => ({ ...p2, bank: (p2.bank || 0) + p2.cash, cash: 0, popup: null, eventMsg: "Deposited all cash.", eventType: "neutral" })) } : null,
+                      bankBal >= 1000 ? { label: "Withdraw £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + 1000, bank: (p2.bank || 0) - 1000, popup: null, eventMsg: "Withdrew £1,000.", eventType: "neutral" })) } : null,
+                      bankBal > 0 ? { label: "Withdraw All", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + (p2.bank || 0), bank: 0, popup: null, eventMsg: "Withdrew all.", eventType: "neutral" })) } : null,
+                      { label: "Close", action: "dismiss" },
+                    ].filter(Boolean)) }));
+                }}>{"Bank" + ((gs.bank || 0) > 0 ? ": £" + gs.bank.toLocaleString() : "")}</button>
+            </div>
           </div>
         )}
 
@@ -2457,6 +2331,7 @@ function GreyMarket() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                 <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
                 <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+                <span style={{ fontSize: 10, cursor: "pointer", color: T.textMuted, marginLeft: 4 }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>↺</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
@@ -2478,6 +2353,24 @@ function GreyMarket() {
                 </div>
                 <span style={{ fontFamily: font, fontSize: 10, color: healthColor }}>{gs.health}%</span>
               </div>}
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                  onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
+                <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                  onClick={() => {
+                    const bankBal = gs.bank || 0;
+                    setGs(p => ({ ...p, popup: mkPopup("BANK", null,
+                      "Stash your P's somewhere safe. Can't be touched.\n\nBank: £" + bankBal.toLocaleString() + "\nCash: £" + p.cash.toLocaleString(),
+                      [
+                        p.cash >= 1000 ? { label: "Deposit £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 1000, bank: (p2.bank || 0) + 1000, popup: null, eventMsg: "Deposited £1,000.", eventType: "neutral" })) } : null,
+                        p.cash >= 5000 ? { label: "Deposit £5k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 5000, bank: (p2.bank || 0) + 5000, popup: null, eventMsg: "Deposited £5,000.", eventType: "neutral" })) } : null,
+                        p.cash > 0 ? { label: "Deposit All", action: () => setGs(p2 => ({ ...p2, bank: (p2.bank || 0) + p2.cash, cash: 0, popup: null, eventMsg: "Deposited all cash.", eventType: "neutral" })) } : null,
+                        bankBal >= 1000 ? { label: "Withdraw £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + 1000, bank: (p2.bank || 0) - 1000, popup: null, eventMsg: "Withdrew £1,000.", eventType: "neutral" })) } : null,
+                        bankBal > 0 ? { label: "Withdraw All", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + (p2.bank || 0), bank: 0, popup: null, eventMsg: "Withdrew all.", eventType: "neutral" })) } : null,
+                        { label: "Close", action: "dismiss" },
+                      ].filter(Boolean)) }));
+                  }}>{"Bank" + ((gs.bank || 0) > 0 ? ": £" + gs.bank.toLocaleString() : "")}</button>
+              </div>
             </div>
           )}
           {/* LOCATION + TRAVEL */}
@@ -2514,19 +2407,19 @@ function GreyMarket() {
           </div>
         </div>
 
-        {/* ACHIEVEMENT BAR */}
-        <div style={{ ...panelStyle, padding: "4px 8px", display: "flex", justifyContent: "center", gap: 4, flexWrap: "wrap", flexShrink: 0 }}>
-          {ACHIEVEMENTS.map(a => (
-            <div key={a.key} title={a.label} style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
-              borderRadius: 4, background: gs.achievements[a.key] ? T.surfaceAlt : T.bg, border: "1px solid " + (gs.achievements[a.key] ? T.accent : T.border),
-              opacity: gs.achievements[a.key] ? 1 : 0.25, cursor: "default" }}>{gs.achievements[a.key] ? a.emoji : "?"}</div>
-          ))}
-        </div>
 
         {/* EVENT BAR */}
         <div style={{ ...panelStyle, padding: "8px 14px", background: eventBg, border: eventBorder, fontFamily: font, fontSize: isMobile ? 11 : 12, color: T.text, lineHeight: 1.5, overflowWrap: "break-word", wordBreak: "break-word", flexShrink: 0 }}>
           <div style={{ opacity: gs.eventFaded ? 0 : 1, transition: "opacity 1.5s ease-out" }}>{gs.eventMsg || ("Day 1. " + BOROUGHS[gs.borough].locations[gs.location] + ", " + BOROUGHS[gs.borough].name + ". You're on road. Let's go.")}</div>
           {gs.tradeMsg && <div style={{ color: T.accent, marginTop: 4, fontSize: 11 }}>{gs.tradeMsg}</div>}
+        </div>
+
+        {/* SHOP + SERVICES BUTTONS */}
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px 0" }}
+            onClick={() => setGs(p => ({ ...p, shopPopup: true }))}>Shop</button>
+          <button style={{ ...btnStyle(false), flex: 1, fontSize: 11, padding: "6px 0" }}
+            onClick={() => setGs(p => ({ ...p, servicesPopup: true }))}>Services</button>
         </div>
 
         {/* SIDE-BY-SIDE MARKET + CARGO */}
@@ -2620,43 +2513,11 @@ function GreyMarket() {
           return (
             <div style={{ ...(isMobile ? { ...panelStyle, padding: "6px 8px", flexShrink: 0, borderTop: "1px solid " + T.border } : { display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginTop: 8 }) }}>
               <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: isMobile ? "flex-start" : "center" }}>
-                {/* Creditor — always visible */}
-                <button style={{ ...btnStyle(false), ...bSize, color: gs.debt <= 0 ? T.green : T.red, borderColor: gs.debt <= 0 ? T.green : T.red }}
-                  onClick={() => { if (gs.debt > 0) setGs(p => ({ ...p, debtPopup: true })); }}>
-                  {gs.debt <= 0 ? "CLEARED" : gs.creditor ? gs.creditor.name : "Debt"}
-                </button>
-                {/* Services — day >= 4 */}
-                {d.services && ((gs.heat > 15 && !gs.newSimUsed) || gs.health < 100) && (() => { markGlow("services"); return (
-                  <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("services") }} disabled={lastDay}
-                    onClick={() => { if (!lastDay) setGs(p => ({ ...p, servicesPopup: true })); }}>Services</button>
-                ); })()}
-                {/* Shop — cash >= 15k */}
-                {d.shop && (() => { markGlow("shop"); return (
-                  <button style={{ ...btnStyle(false), ...bSize, opacity: lastDay ? 0.3 : 1, ...glow("shop") }} disabled={lastDay}
-                    onClick={() => { if (!lastDay) setGs(p => ({ ...p, shopPopup: true })); }}>Shop</button>
-                ); })()}
                 {/* Price History — after first travel */}
                 {d.priceHistory && (() => { markGlow("priceHistory"); return (
                   <button style={{ ...btnStyle(false), ...bSize, ...glow("priceHistory") }}
                     onClick={() => setGs(p => ({ ...p, priceHistoryPopup: true }))}>Prices</button>
                 ); })()}
-                {/* Bank */}
-                <button style={{ ...btnStyle(false), ...bSize }}
-                  onClick={() => {
-                    const bankBal = gs.bank || 0;
-                    setGs(p => ({ ...p, popup: mkPopup("BANK", null,
-                      "Stash your P's somewhere safe. Can't be touched.\n\nBank: £" + bankBal.toLocaleString() + "\nCash: £" + p.cash.toLocaleString(),
-                      [
-                        p.cash >= 1000 ? { label: "Deposit £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 1000, bank: (p2.bank || 0) + 1000, popup: null, eventMsg: "Deposited £1,000.", eventType: "neutral" })) } : null,
-                        p.cash >= 5000 ? { label: "Deposit £5k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 5000, bank: (p2.bank || 0) + 5000, popup: null, eventMsg: "Deposited £5,000.", eventType: "neutral" })) } : null,
-                        p.cash >= 10000 ? { label: "Deposit £10k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash - 10000, bank: (p2.bank || 0) + 10000, popup: null, eventMsg: "Deposited £10,000.", eventType: "neutral" })) } : null,
-                        p.cash > 0 ? { label: "Deposit All (£" + p.cash.toLocaleString() + ")", action: () => setGs(p2 => ({ ...p2, bank: (p2.bank || 0) + p2.cash, cash: 0, popup: null, eventMsg: "Deposited £" + p2.cash.toLocaleString() + ".", eventType: "neutral" })) } : null,
-                        bankBal >= 1000 ? { label: "Withdraw £1k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + 1000, bank: (p2.bank || 0) - 1000, popup: null, eventMsg: "Withdrew £1,000.", eventType: "neutral" })) } : null,
-                        bankBal >= 5000 ? { label: "Withdraw £5k", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + 5000, bank: (p2.bank || 0) - 5000, popup: null, eventMsg: "Withdrew £5,000.", eventType: "neutral" })) } : null,
-                        bankBal > 0 ? { label: "Withdraw All (£" + bankBal.toLocaleString() + ")", action: () => setGs(p2 => ({ ...p2, cash: p2.cash + (p2.bank || 0), bank: 0, popup: null, eventMsg: "Withdrew £" + (p2.bank || 0).toLocaleString() + ".", eventType: "neutral" })) } : null,
-                        { label: "Close", action: "dismiss" },
-                      ].filter(Boolean)) }));
-                  }}>Bank</button>
                 {/* Lay Low — always visible, limited uses */}
                 {!lastDay && <button style={{ ...btnStyle(canLayLow), ...bSize, opacity: canLayLow ? 1 : 0.4 }} disabled={!canLayLow}
                   onClick={() => {
@@ -2670,35 +2531,12 @@ function GreyMarket() {
                         { label: "Confirm", primary: true, action: () => { dismissPopup(); layLow(); } },
                       ]) }));
                   }}>{layLowLabel}</button>}
-                {/* Cash Out — debt cleared or day 30 */}
-                {d.cashOut && (() => { markGlow("cashOut"); return (
-                  lastDay
-                    ? <button style={{ ...btnStyle(true, T.red), ...bSize, ...glow("cashOut") }} onClick={endGame}>CASH OUT</button>
-                    : <button style={{ ...btnStyle(true, T.red), ...bSize, ...glow("cashOut") }} onClick={() => {
-                        const daysLeft = MAX_DAYS - gs.day;
-                        setGs(p => ({ ...p, popup: mkPopup("CASH OUT", null,
-                          "Walk away now? You've still got " + daysLeft + " days. Every day is money or madness.",
-                          [
-                            { label: "Cash Out", primary: false, action: () => { setGs(p2 => ({ ...p2, cashedOut: true })); endGame(); } },
-                            { label: "Stay", primary: true, action: "dismiss" },
-                          ]) }));
-                      }}>CASH OUT</button>
-                ); })()}
+                {lastDay && <button style={{ ...btnStyle(true, T.red), ...bSize }} onClick={endGame}>FINISH</button>}
               </div>
             </div>
           );
         })()}
 
-        <div style={{ textAlign: "center", marginTop: 12, marginBottom: 24 }}>
-          <button style={btnStyle(false)} onClick={() => {
-            setGs(p => ({ ...p, popup: mkPopup("WALK AWAY", null,
-              "Walk away from the table? All active deals will be lost.",
-              [
-                { label: "Walk Away", primary: false, action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } },
-                { label: "Cancel", primary: true, action: "dismiss" },
-              ]) }));
-          }}>New Game</button>
-        </div>
       </div>
     </div>
   );
