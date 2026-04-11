@@ -440,7 +440,7 @@ function generateAvail() {
 }
 function totalInventory(inv) { return inv.reduce((a, b) => a + b, 0); }
 function netWorth(s) { return s.cash + (s.bank || 0) + s.inventory.reduce((sum, qty, i) => sum + qty * (s.prices[i] || 0), 0) - s.debt; }
-// Travel costs time only: within borough = 1 day, between boroughs = 2 days
+// Travel costs time only: all travel = 1 day
 function heatIncrease(itemIdx, amount) {
   // Only Cocaine (1) and Heroin (4) raise heat — Class A in volume
   if (itemIdx === 1 || itemIdx === 4) {
@@ -830,11 +830,11 @@ function GreyMarket() {
             const msgs = ["You legged it through " + loc + ". Lost them in the back streets. Heart pounding. You're clear.", "You ran. They chased. You were faster. Just. Gone through a fence and into the estates.", "Sprinted through " + loc + " market. Knocked over a stall. They gave up after two blocks."];
             return { ...p, popup: null, eventMsg: pick(msgs), eventType: "good" };
           } else {
-            const msgs = ["You ran. They were faster. Tackled in " + loc + ". They found everything.", "Tried to leg it. Didn't make it past the corner. Face on the pavement in " + loc + ".", "You bolted but they had backup. Caught you in " + loc + ". Rough handling. They took what they wanted."];
+            const msgs = totalInventory(p.inventory) > 0 ? ["You ran. They were faster. Tackled in " + loc + ". They found everything.", "Tried to leg it. Didn't make it past the corner. Face on the pavement in " + loc + ".", "You bolted but they had backup. Caught you in " + loc + ". Rough handling. They took what they wanted."] : ["You ran. They caught you in " + loc + ". Wasted police time. Fined and held for the day.", "Tried to leg it but they were faster. Caught in " + loc + ". Nothing on you but you wasted their time.", "You bolted. They tackled you in " + loc + ". Empty pockets but you still got held."];
             const inv = [...p.inventory]; const avg = [...p.avgCost];
             const sorted = inv.map((qty, i) => ({ idx: i, qty, val: qty * p.prices[i] })).filter(x => x.qty > 0).sort((a, b) => b.val - a.val);
             if (sorted.length > 0) { const pct = 0.7 + Math.random() * 0.1; const lost = Math.ceil(sorted[0].qty * pct); inv[sorted[0].idx] = Math.max(0, inv[sorted[0].idx] - lost); if (inv[sorted[0].idx] === 0) avg[sorted[0].idx] = 0; }
-            const cashLost = Math.min(p.cash, Math.floor(p.cash * 0.2));
+            const cashLost = sorted.length > 0 ? Math.min(p.cash, Math.floor(p.cash * 0.2)) : Math.min(p.cash, Math.max(500, Math.floor(p.cash * 0.10)));
             const heatGain = 5 + Math.floor(Math.random() * 6);
             const newDay = Math.min(p.day + 1, MAX_DAYS);
             const newDebt = p.debt > 0 ? Math.round(p.debt * (1 + p.debtInterest)) : 0;
@@ -900,8 +900,8 @@ function GreyMarket() {
             popup: mkPopup("STOP & SEARCH", null, msg, [
               shiftyBtn,
               runBtn,
-              dumpBtn,
-              surrenderBtn,
+              totalInv > 0 ? dumpBtn : null,
+              totalInv > 0 ? surrenderBtn : null,
             ].filter(Boolean)) };
         }
 
@@ -920,8 +920,8 @@ function GreyMarket() {
               seizeCount > 0 ? makeSeizeAction(seizeCount) : null,
               shiftyBtn,
               runBtn,
-              dumpBtn,
-              surrenderBtn,
+              totalInv > 0 ? dumpBtn : null,
+              totalInv > 0 ? surrenderBtn : null,
             ].filter(Boolean)) };
         }
 
@@ -940,8 +940,8 @@ function GreyMarket() {
               seizeCount > 0 ? makeSeizeAction(seizeCount) : null,
               shiftyBtn,
               runBtn,
-              dumpBtn,
-              surrenderBtn,
+              totalInv > 0 ? dumpBtn : null,
+              totalInv > 0 ? surrenderBtn : null,
             ].filter(Boolean)) };
         }
 
@@ -1260,10 +1260,9 @@ function GreyMarket() {
       if (blocked && blocked > 0) return { ...prev, eventMsg: "Can't go to " + BOROUGHS[rIdx].locations[cIdx] + " for " + blocked + " more days.", eventType: "bad" };
 
       const changedBorough = rIdx !== prev.borough;
-      const daysCost = changedBorough ? 2 : 1;
+      const daysCost = 1;
       const newDay = prev.day + daysCost;
       if (newDay > MAX_DAYS) {
-        if (changedBorough) return { ...prev, eventMsg: "No time to get there. Too far.", eventType: "bad", travelPopup: false, travelBorough: null };
         return { ...prev, phase: "gameover" };
       }
 
@@ -1296,7 +1295,7 @@ function GreyMarket() {
       for (const [k, v] of Object.entries(prev.blockedLocations)) { if (v > 1) newBlocked[k] = v - 1; }
 
       const arrivalMsg = tipMsg;
-      const transitNote = changedBorough ? " Transit: 2 days." : "";
+      const transitNote = "";
       const debtMsg = newDebt > prev.debt ? " Debt: +£" + (newDebt - prev.debt).toLocaleString() + "." : "";
 
       return {
@@ -1553,12 +1552,12 @@ function GreyMarket() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {BOROUGHS.map((r, i) => {
                   const isCurrent = i === gs.borough;
-                  const noTime = !isCurrent && gs.day >= MAX_DAYS - 1;
+                  const noTime = !isCurrent && gs.day >= MAX_DAYS;
                   return (
                     <button key={i} disabled={noTime} style={{ ...btnStyle(false), padding: "10px 12px", textAlign: "left", display: "flex", flexDirection: "column", gap: 2, background: isCurrent ? T.accentDim : "transparent", opacity: noTime ? 0.35 : 1 }}
                       onClick={() => { if (!noTime) setGs(p => ({ ...p, travelBorough: i })); }}>
                       <span style={{ fontWeight: 700, color: isCurrent ? T.accent : noTime ? T.textMuted : T.text }}>{r.name}</span>
-                      <span style={{ fontSize: 10, color: noTime ? T.red : T.textDim, fontWeight: 400 }}>{isCurrent ? "Current borough" : noTime ? "Not enough time" : "Transit: 2 days"}</span>
+                      <span style={{ fontSize: 10, color: noTime ? T.red : T.textDim, fontWeight: 400 }}>{isCurrent ? "Current borough" : noTime ? "Not enough time" : "1 day"}</span>
                     </button>
                   );
                 })}
@@ -1798,7 +1797,7 @@ function GreyMarket() {
     const glowStyle = (key) => !ts[key] ? { animation: "tutorial-glow 1.5s ease-in-out infinite", borderRadius: 8 } : {};
     const tutorialExplainers = {
       header: { title: "DASHBOARD", text: "This is your dashboard. Cash is what you're carrying. Debt is what you owe your creditor — interest compounds every day. The bar shows your heat level.", tip: "Pay your debt early. Interest will eat you alive." },
-      location: { title: "LOCATION", text: "This is where you are. Tap a location to travel within the borough (1 day). Tap Travel to move between boroughs (2 days). Prices change every time you move.", tip: "Different boroughs have different prices. That's where the profit is." },
+      location: { title: "LOCATION", text: "This is where you are. Tap a location to travel within the borough. Tap Travel to move between boroughs. All travel takes 1 day. Prices change every time you move.", tip: "Different boroughs have different prices. That's where the profit is." },
       market: { title: "MARKET", text: "What's available here. Prices on the left, what you're holding on the right. Tap to buy or sell.", tip: "Track what you paid. Sell for more than that. That's the whole game." },
       buttons: { title: "TOOLS", text: "Your tools. Pay your debt here. More options unlock as you play — services, the shop, and ways to lay low.", tip: "You won't need all of these on day one. Focus on trading." },
     };
@@ -2138,9 +2137,11 @@ function GreyMarket() {
                         <div style={{ fontFamily: font, fontSize: 10, color: T.textDim }}>Anti-police. 2 uses per hire.</div>
                         {gs.shiftyActive && gs.shiftyUses > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.green }}>{"Active — " + gs.shiftyUses + " uses" + (gs.shiftyCooldown > 0 ? " · Cooldown: " + gs.shiftyCooldown + "d" : "")}</div>}
                       </div>
-                      <span style={{ fontFamily: font, fontSize: 11, color: gs.shiftyActive && gs.shiftyUses > 0 ? T.green : T.accent }}>
-                        {gs.shiftyActive && gs.shiftyUses > 0 ? "Hired" : "£" + protCost.toLocaleString()}
-                      </span>
+                      {gs.shiftyActive && gs.shiftyUses > 0 ? (
+                        <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Hired</span>
+                      ) : (
+                        <button style={{ ...btnStyle(true), fontSize: 11, padding: "4px 10px" }}>{"£" + protCost.toLocaleString()}</button>
+                      )}
                     </div>
                     <div style={{ padding: "8px 10px", background: T.bg, borderRadius: 8, border: "1px solid " + T.border, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
                       onClick={() => {
@@ -2157,9 +2158,13 @@ function GreyMarket() {
                         {gs.jamalActive && <div style={{ fontFamily: font, fontSize: 10, color: T.green }}>Active</div>}
                         {gs.jamalGhost > 0 && <div style={{ fontFamily: font, fontSize: 10, color: T.amber }}>{"Ghost for " + gs.jamalGhost + " days"}</div>}
                       </div>
-                      <span style={{ fontFamily: font, fontSize: 11, color: gs.jamalActive ? T.green : T.accent }}>
-                        {gs.jamalActive ? "Hired" : gs.jamalGhost > 0 ? "Ghost" : "£" + protCost.toLocaleString()}
-                      </span>
+                      {gs.jamalActive ? (
+                        <span style={{ fontFamily: font, fontSize: 11, color: T.green }}>Hired</span>
+                      ) : gs.jamalGhost > 0 ? (
+                        <span style={{ fontFamily: font, fontSize: 11, color: T.amber }}>Ghost</span>
+                      ) : (
+                        <button style={{ ...btnStyle(true), fontSize: 11, padding: "4px 10px" }}>{"£" + protCost.toLocaleString()}</button>
+                      )}
                     </div>
                   </>
                 );
@@ -2281,13 +2286,15 @@ function GreyMarket() {
           <div style={{ ...panelStyle, padding: "8px 12px", position: "sticky", top: 0, zIndex: 100, willChange: "transform" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
               <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
-              <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
-              <span style={{ fontSize: 10, cursor: "pointer", color: T.textMuted, marginLeft: 4 }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>↺</span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <span style={{ fontFamily: font, fontSize: 9, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>New Game</span>
+                <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+              </div>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-              <span style={{ fontFamily: font, fontSize: 11 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
-              {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 11 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
-              {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 11 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
+              <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+              {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
+              {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
@@ -2304,9 +2311,9 @@ function GreyMarket() {
               <span style={{ fontFamily: font, fontSize: 9, color: healthColor }}>{gs.health}%</span>
             </div>}
             <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+              {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
                 onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
-              <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+              <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
                 onClick={() => {
                   const bankBal = gs.bank || 0;
                   setGs(p => ({ ...p, popup: mkPopup("BANK", null,
@@ -2330,13 +2337,15 @@ function GreyMarket() {
             <div style={{ ...panelStyle, flex: 1, padding: "12px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                 <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
-                <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
-                <span style={{ fontSize: 10, cursor: "pointer", color: T.textMuted, marginLeft: 4 }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>↺</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontFamily: font, fontSize: 9, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>New Game</span>
+                  <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
+                </div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
-                {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
-                {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
+                <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
+                {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
+                {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
               </div>
               <div style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
@@ -2354,9 +2363,9 @@ function GreyMarket() {
                 <span style={{ fontFamily: font, fontSize: 10, color: healthColor }}>{gs.health}%</span>
               </div>}
               <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
                   onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
-                <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "3px 8px", cursor: "pointer" }}
+                <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
                   onClick={() => {
                     const bankBal = gs.bank || 0;
                     setGs(p => ({ ...p, popup: mkPopup("BANK", null,
@@ -2450,7 +2459,7 @@ function GreyMarket() {
                       const canBuy = gs.cash >= gs.prices[i] && space > 0;
                       return (
                         <div key={i}
-                          onClick={() => { if (canBuy) { setGs(p => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); } else { setGs(p => ({ ...p, eventMsg: "Not enough cash or space.", eventType: "bad" })); } }}
+                          onClick={() => { if (canBuy) { setGs(p => ({ ...p, qtyPopup: { type: "buy", itemIdx: i } })); setQtyInput(""); } else { const noMoney = gs.cash < gs.prices[i]; const noSpace = space <= 0; setGs(p => ({ ...p, eventMsg: noMoney && !noSpace ? "Not enough cash." + ((p.bank || 0) > 0 ? " You have £" + p.bank.toLocaleString() + " in the bank." : "") : !noMoney && noSpace ? "No room. Capacity " + totalInv + "/" + gs.capacity + "." : "Not enough cash or space.", eventType: "bad" })); } }}
                           style={{ display: "flex", alignItems: "center", height: rowH,
                             padding: "0 8px", cursor: "pointer", whiteSpace: "nowrap",
                             background: isMega ? "rgba(249,115,22,0.08)" : i % 2 === 0 ? "transparent" : "rgba(255,255,255,0.03)",
