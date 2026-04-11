@@ -2283,37 +2283,37 @@ function GreyMarket() {
       <div style={{ maxWidth: 768, width: "100%", margin: "auto", padding: isMobile ? "0 4px" : 0, boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 8, flex: isMobile ? 1 : "none", overflow: isMobile ? "auto" : "visible", overscrollBehavior: "none", WebkitOverflowScrolling: "touch" }}>
         {/* MOBILE STICKY HEADER */}
         {isMobile && (
-          <div style={{ ...panelStyle, padding: "8px 12px", position: "sticky", top: 0, zIndex: 100, willChange: "transform" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+          <div style={{ ...panelStyle, padding: "16px", position: "sticky", top: 0, zIndex: 100, willChange: "transform" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontFamily: font, fontSize: 11, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span style={{ fontFamily: font, fontSize: 9, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>New Game</span>
                 <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
               </div>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
               {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
               {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 13 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
               <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
               <div style={{ flex: 1, height: 5, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ width: gs.heat + "%", height: "100%", background: heatColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
               </div>
               <span style={{ fontFamily: font, fontSize: 9, color: heatColor }}>{gs.heat}%</span>
             </div>
-            {gs.health < 100 && <div style={{ marginTop: 3, display: "flex", alignItems: "center", gap: 6 }}>
+            {gs.health < 100 && <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{ fontFamily: font, fontSize: 9, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEALTH</span>
               <div style={{ flex: 1, height: 5, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ width: gs.health + "%", height: "100%", background: healthColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
               </div>
               <span style={{ fontFamily: font, fontSize: 9, color: healthColor }}>{gs.health}%</span>
             </div>}
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "8px 16px", cursor: "pointer" }}
                 onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
-              <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
+              <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "8px 16px", cursor: "pointer" }}
                 onClick={() => {
                   const bankBal = gs.bank || 0;
                   setGs(p => ({ ...p, popup: mkPopup("BANK", null,
@@ -2334,38 +2334,38 @@ function GreyMarket() {
         <div style={{ display: "flex", gap: 8, flexDirection: isMobile ? "column" : "row" }}>
           {/* DESKTOP STATS PANEL */}
           {!isMobile && (
-            <div style={{ ...panelStyle, flex: 1, padding: "12px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+            <div style={{ ...panelStyle, flex: 1, padding: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontFamily: font, fontSize: 12, fontWeight: 700, color: T.accent }}>Day {gs.day}/{MAX_DAYS}</span>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span style={{ fontFamily: font, fontSize: 9, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, popup: mkPopup("NEW GAME", null, "Start over? You'll lose everything.", [{ label: "Cancel", primary: true, action: "dismiss" }, { label: "New Game", action: () => { const s = getInitialState(); setGs({ ...s, phase: "title" }); } }]) }))}>New Game</span>
                   <span style={{ fontSize: 11, cursor: "pointer", color: T.textMuted }} onClick={() => setGs(p => ({ ...p, muted: !p.muted }))}>{gs.muted ? "🔇" : "🔊"}</span>
                 </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Cash: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.cash.toLocaleString()}</span></span>
                 {(gs.bank || 0) > 0 && <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Bank: </span><span style={{ fontWeight: 700, color: T.green }}>£{gs.bank.toLocaleString()}</span></span>}
                 {gs.debt > 0 && <span style={{ fontFamily: font, fontSize: 14 }}><span style={{ color: T.textDim }}>Debt: </span><span style={{ fontWeight: 700, color: T.red }}>£{gs.debt.toLocaleString()}</span></span>}
               </div>
-              <div style={{ marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
                 <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEAT</span>
                 <div style={{ flex: 1, height: 6, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
                   <div style={{ width: gs.heat + "%", height: "100%", background: heatColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
                 </div>
                 <span style={{ fontFamily: font, fontSize: 10, color: heatColor }}>{gs.heat}%</span>
               </div>
-              <div style={{ fontFamily: font, fontSize: 9, color: heatColor, marginTop: 4 }}>{heatStatus}</div>
-              {gs.health < 100 && <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={{ fontFamily: font, fontSize: 9, color: heatColor, marginBottom: 8 }}>{heatStatus}</div>
+              {gs.health < 100 && <div style={{ marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ fontSize: 10, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>HEALTH</span>
                 <div style={{ flex: 1, height: 6, background: T.bg, borderRadius: 3, overflow: "hidden" }}>
                   <div style={{ width: gs.health + "%", height: "100%", background: healthColor, borderRadius: 3, transition: "width 0.5s, background 0.5s" }} />
                 </div>
                 <span style={{ fontFamily: font, fontSize: 10, color: healthColor }}>{gs.health}%</span>
               </div>}
-              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-                {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
+              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                {gs.debt > 0 && <button style={{ fontFamily: font, fontSize: 10, color: T.red, background: "none", border: "1px solid " + T.red, borderRadius: 4, padding: "8px 16px", cursor: "pointer" }}
                   onClick={() => setGs(p => ({ ...p, debtPopup: true }))}>{"Pay " + gs.creditor.name}</button>}
-                <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "5px 10px", cursor: "pointer" }}
+                <button style={{ fontFamily: font, fontSize: 10, color: T.green, background: "none", border: "1px solid " + T.border, borderRadius: 4, padding: "8px 16px", cursor: "pointer" }}
                   onClick={() => {
                     const bankBal = gs.bank || 0;
                     setGs(p => ({ ...p, popup: mkPopup("BANK", null,
